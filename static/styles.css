@@ -1240,18 +1240,19 @@ details.sidebar-cloud[open] > .cloud-summary::before {
   font-size: 0.72rem;
 }
 
-.cf-dns-union-row {
-  margin-top: 0.5rem;
-  padding-top: 0.45rem;
-  border-top: 1px dashed var(--border);
-}
-
-.cf-dns-union-field {
-  max-width: 22rem;
-}
-
-.cf-dns-union-actions {
+.cf-dns-details {
   margin-top: 0.35rem;
+  font-size: 0.72rem;
+}
+
+.cf-dns-details summary {
+  cursor: pointer;
+  color: var(--muted);
+  user-select: none;
+}
+
+.cf-dns-details[open] summary {
+  margin-bottom: 0.35rem;
 }
 
 .login-gate {

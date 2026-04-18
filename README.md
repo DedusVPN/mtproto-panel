@@ -1,6 +1,6 @@
 # free-tg-mtproxy
 
-Панель развёртывания **Telemt** по SSH и блоки «Облако · VDSina» и **Cloudflare DNS** (синхронизация нескольких A на один поддомен).
+Панель развёртывания **Telemt** по SSH и блоки «Облако · VDSina» и **Cloudflare DNS** (сводка A и синхронизация с серверами панели).
 
 Сценарий по умолчанию: **доступ по `http://IP:порт` без домена и SSL**. В `.env` должны быть **`PANEL_COOKIE_SECURE=false`** и **`PANEL_TRUST_FORWARDED_PROTO=false`**, иначе вход по cookie не заработает в браузере.
 
@@ -26,16 +26,13 @@ uv run python -m uvicorn app.main:app --host "${PANEL_BIND_HOST:-0.0.0.0}" --por
 | `data/` | локальные данные (`servers.json`, не в git) |
 | `deploy/` | `Dockerfile`, `docker-entrypoint.sh`, `init_docker_secrets.sh` |
 | `scripts/` | утилиты и проверка auth |
-| `config/cloudflare_dns_targets.example.json` | пример целей DNS для Cloudflare |
-
 ### Cloudflare DNS
 
 В `.env`: `CLOUDFLARE_API_TOKEN` и зона — `CLOUDFLARE_ZONE_ID` или `CLOUDFLARE_ZONE_NAME`.
 
-- **Панель (основной сценарий):** раздел **Провайдеры** → Cloudflare → таблица серверов из `data/servers.json`: отметьте строки, при необходимости поправьте поддомен (по умолчанию подсказка из имени сервера), **«Выбранные → DNS»**. Для каждого IPv4 в поле «хост» создаётся/обновляется набор A-записей под указанным поддоменом. Несколько серверов с **одинаковым** поддоменом дают **несколько A** на одно имя. Отдельно: **«Все IP → одно имя»** — все отмеченные серверы в одну группу A под одним поддоменом.
-- **`.env` JSON/файл** (`CLOUDFLARE_DNS_TARGETS_*`) — только если нужна синхронизация без UI (cron, скрипты).
-- CLI: `uv run python scripts/cloudflare_sync_dns.py --dry-run` или `--name mt --ips 1.2.3.4,5.6.7.8`.
-- API: `GET /api/cloud/cloudflare/panel-servers-preview`, `POST /api/cloud/cloudflare/sync-panel-servers`, плюс ручной `sync-a` и `sync-config`.
+- **Панель:** **Провайдеры** → Cloudflare — сводка A-записей зоны и связь с серверами по IP, правка поддоменов, **dry-run** (лог действий) и применение.
+- API: `GET /api/cloud/cloudflare/overview`, `POST /api/cloud/cloudflare/sync-panel-servers`.
+- CLI (одна группа A): `uv run python scripts/cloudflare_sync_dns.py --dry-run --name mt --ips 1.2.3.4,5.6.7.8`.
 
 ## Docker
 

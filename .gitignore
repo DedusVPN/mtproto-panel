@@ -21,6 +21,3 @@ data/*.json.tmp
 
 # Docker / панель
 secrets/
-
-# Локальные цели Cloudflare DNS (секреты не коммитить)
-config/cloudflare_dns_targets.json

@@ -1658,159 +1658,158 @@
   const cfDnsPanel = $("cf-dns-panel");
   if (cfDnsPanel) {
     const cfDnsOut = $("cf-dns-out");
+    const cfDnsLog = $("cf-dns-log");
+
     function cfDnsShowJson(obj) {
       if (!cfDnsOut) return;
       cfDnsOut.classList.remove("log-empty");
       cfDnsOut.textContent = JSON.stringify(obj, null, 2);
     }
+
+    function cfDnsShowLog(lines) {
+      if (!cfDnsLog) return;
+      cfDnsLog.classList.remove("log-empty");
+      cfDnsLog.textContent = Array.isArray(lines) && lines.length ? lines.join("\n") : "(нет шагов)";
+    }
+
     function cfDnsShowErr(e) {
-      if (!cfDnsOut) return;
-      cfDnsOut.classList.remove("log-empty");
-      cfDnsOut.textContent = String(e.message || e);
-    }
-
-    function parseCfDnsIps() {
-      const raw = String($("cf-dns-ips").value || "");
-      return raw
-        .split(/[\s,;]+/)
-        .map((s) => s.trim())
-        .filter(Boolean);
-    }
-
-    async function refreshCfDnsStatus() {
-      const line = $("cf-dns-line");
-      if (!line) return;
-      try {
-        const st = await apiJson("/api/cloud/cloudflare/status");
-        const z = st.zone ? st.zone.name + " · " + st.zone.id : "зона не загружена";
-        const tok = st.configured ? st.token_status || "ok" : "нет токена";
-        line.textContent =
-          (st.configured ? "Токен: " + tok : "Задайте CLOUDFLARE_API_TOKEN") +
-          (st.zone ? " · " + z : st.zone_error ? " · зона: " + st.zone_error : "") +
-          (typeof st.targets_count === "number" ? " · целей в конфиге: " + st.targets_count : "");
-        cfDnsShowJson(st);
-      } catch (e) {
-        line.textContent = "Ошибка: " + (e.message || e);
-        cfDnsShowErr(e);
+      const msg = String(e.message || e);
+      if (cfDnsLog) {
+        cfDnsLog.classList.remove("log-empty");
+        cfDnsLog.textContent = msg;
+      }
+      if (cfDnsOut) {
+        cfDnsOut.classList.remove("log-empty");
+        cfDnsOut.textContent = msg;
       }
     }
 
-    $("btn-cf-dns-status").addEventListener("click", () => refreshCfDnsStatus().catch((e) => console.error(e)));
-
-    $("btn-cf-dns-list").addEventListener("click", async () => {
-      const name = ($("cf-dns-name").value || "").trim();
-      if (!name) {
-        alert("Укажите поддомен");
-        return;
+    function cfDnsClearLog() {
+      if (cfDnsLog) {
+        cfDnsLog.textContent = "";
+        cfDnsLog.classList.add("log-empty");
       }
-      try {
-        const q = encodeURIComponent(name);
-        const data = await apiJson("/api/cloud/cloudflare/dns-records?name=" + q);
-        cfDnsShowJson(data);
-      } catch (e) {
-        cfDnsShowErr(e);
-      }
-    });
-
-    $("btn-cf-dns-dry").addEventListener("click", async () => {
-      const name = ($("cf-dns-name").value || "").trim();
-      const ips = parseCfDnsIps();
-      if (!name || !ips.length) {
-        alert("Укажите поддомен и хотя бы один IPv4");
-        return;
-      }
-      const ttl = parseInt(String($("cf-dns-ttl").value || "1"), 10);
-      try {
-        const data = await apiJson("/api/cloud/cloudflare/sync-a/dry-run", {
-          method: "POST",
-          body: { name, ips, proxied: $("cf-dns-proxied").checked, ttl: Number.isFinite(ttl) && ttl >= 1 ? ttl : 1 },
-        });
-        cfDnsShowJson(data);
-      } catch (e) {
-        cfDnsShowErr(e);
-      }
-    });
-
-    $("btn-cf-dns-sync").addEventListener("click", async () => {
-      const name = ($("cf-dns-name").value || "").trim();
-      const ips = parseCfDnsIps();
-      if (!name || !ips.length) {
-        alert("Укажите поддомен и хотя бы один IPv4");
-        return;
-      }
-      const ttl = parseInt(String($("cf-dns-ttl").value || "1"), 10);
-      try {
-        const data = await apiJson("/api/cloud/cloudflare/sync-a", {
-          method: "POST",
-          body: { name, ips, proxied: $("cf-dns-proxied").checked, ttl: Number.isFinite(ttl) && ttl >= 1 ? ttl : 1 },
-        });
-        cfDnsShowJson(data);
-      } catch (e) {
-        cfDnsShowErr(e);
-      }
-    });
-
-    function cfDnsPanelTtl() {
-      const ttl = parseInt(String($("cf-dns-ttl").value || "1"), 10);
-      return Number.isFinite(ttl) && ttl >= 1 ? ttl : 1;
     }
 
-    async function loadCfDnsPanelTable() {
+    function renderCfDnsCfTable(data) {
+      const tbody = $("cf-dns-cf-tbody");
+      const table = $("cf-dns-cf-table");
+      const empty = $("cf-dns-cf-empty");
+      const hint = $("cf-dns-cf-hint");
+      if (!tbody || !table || !empty) return;
+      const recs = Array.isArray(data.a_records) ? data.a_records : [];
+      tbody.innerHTML = "";
+      if (!recs.length) {
+        table.hidden = true;
+        empty.hidden = false;
+        empty.textContent = "В зоне нет A-записей (или не удалось загрузить).";
+      } else {
+        empty.hidden = true;
+        table.hidden = false;
+        for (const r of recs) {
+          const tr = document.createElement("tr");
+          const m = Array.isArray(r.matched_panel_servers) ? r.matched_panel_servers : [];
+          const names = m.map((x) => (x.name || x.id || "").trim()).filter(Boolean);
+          const td0 = document.createElement("td");
+          td0.className = "cf-dns-mono";
+          td0.textContent = String(r.relative_name != null ? r.relative_name : "");
+          const td1 = document.createElement("td");
+          td1.className = "cf-dns-mono";
+          td1.textContent = String(r.content || "");
+          const td2 = document.createElement("td");
+          td2.textContent = names.length ? names.join(", ") : "— (нет сервера с таким IP в панели)";
+          tr.appendChild(td0);
+          tr.appendChild(td1);
+          tr.appendChild(td2);
+          tbody.appendChild(tr);
+        }
+      }
+      if (hint) {
+        const miss = Array.isArray(data.panel_servers_without_a) ? data.panel_servers_without_a : [];
+        if (miss.length) {
+          hint.textContent =
+            "Серверы с IPv4 в панели, для которых в зоне нет A на этот IP: " +
+            miss.map((x) => (x.panel_name || x.server_id) + " (" + (x.ipv4 || "") + ")").join("; ");
+        } else {
+          hint.textContent = "Все IPv4 из панели встречаются хотя бы в одной A-записи зоны.";
+        }
+      }
+    }
+
+    function renderCfDnsPanelTable(rows) {
       const tbody = $("cf-dns-panel-tbody");
       const table = $("cf-dns-panel-table");
       const empty = $("cf-dns-panel-empty");
       if (!tbody || !table || !empty) return;
+      tbody.innerHTML = "";
+      if (!rows.length) {
+        table.hidden = true;
+        empty.hidden = false;
+        empty.textContent = "В панели нет сохранённых серверов.";
+        return;
+      }
+      empty.hidden = true;
+      table.hidden = false;
+      for (const r of rows) {
+        const tr = document.createElement("tr");
+        const okIp = !!r.ipv4;
+        tr.dataset.serverId = String(r.server_id || "");
+        const chk = document.createElement("input");
+        chk.type = "checkbox";
+        chk.className = "cf-dns-panel-chk";
+        if (!okIp) chk.disabled = true;
+        const td0 = document.createElement("td");
+        td0.className = "cf-dns-col-check";
+        td0.appendChild(chk);
+        const td1 = document.createElement("td");
+        td1.textContent = String(r.panel_name || "");
+        const td2 = document.createElement("td");
+        td2.className = "cf-dns-mono";
+        td2.appendChild(document.createTextNode(String(r.host || "")));
+        if (!okIp) {
+          const sp = document.createElement("span");
+          sp.className = "cf-dns-bad-ip";
+          sp.textContent = " не IPv4";
+          td2.appendChild(sp);
+        }
+        const td3 = document.createElement("td");
+        const inp = document.createElement("input");
+        inp.type = "text";
+        inp.className = "input input-mono input-tight cf-dns-panel-name";
+        inp.value = String(r.suggested_subdomain || "");
+        inp.autocomplete = "off";
+        td3.appendChild(inp);
+        tr.appendChild(td0);
+        tr.appendChild(td1);
+        tr.appendChild(td2);
+        tr.appendChild(td3);
+        tbody.appendChild(tr);
+      }
+    }
+
+    async function refreshCfDnsOverview(skipFullJson) {
+      const line = $("cf-dns-line");
+      if (!line) return;
+      if (!skipFullJson) cfDnsClearLog();
       try {
-        const data = await apiJson("/api/cloud/cloudflare/panel-servers-preview");
-        const rows = Array.isArray(data.servers) ? data.servers : [];
-        tbody.innerHTML = "";
-        if (!rows.length) {
-          table.hidden = true;
-          empty.hidden = false;
-          empty.textContent = "В панели нет сохранённых серверов.";
+        const data = await apiJson("/api/cloud/cloudflare/overview");
+        if (data.error) {
+          line.textContent = data.error;
+          renderCfDnsCfTable({ a_records: [], panel_servers_without_a: [] });
+          renderCfDnsPanelTable([]);
+          if (!skipFullJson) cfDnsShowJson(data);
           return;
         }
-        empty.hidden = true;
-        table.hidden = false;
-        for (const r of rows) {
-          const tr = document.createElement("tr");
-          const okIp = !!r.ipv4;
-          tr.dataset.serverId = String(r.server_id || "");
-          const chk = document.createElement("input");
-          chk.type = "checkbox";
-          chk.className = "cf-dns-panel-chk";
-          if (!okIp) chk.disabled = true;
-          const td0 = document.createElement("td");
-          td0.className = "cf-dns-col-check";
-          td0.appendChild(chk);
-          const td1 = document.createElement("td");
-          td1.textContent = String(r.panel_name || "");
-          const td2 = document.createElement("td");
-          td2.className = "cf-dns-mono";
-          td2.appendChild(document.createTextNode(String(r.host || "")));
-          if (!okIp) {
-            const sp = document.createElement("span");
-            sp.className = "cf-dns-bad-ip";
-            sp.textContent = " не IPv4";
-            td2.appendChild(sp);
-          }
-          const td3 = document.createElement("td");
-          const inp = document.createElement("input");
-          inp.type = "text";
-          inp.className = "input input-mono input-tight cf-dns-panel-name";
-          inp.value = String(r.suggested_subdomain || "");
-          inp.autocomplete = "off";
-          td3.appendChild(inp);
-          tr.appendChild(td0);
-          tr.appendChild(td1);
-          tr.appendChild(td2);
-          tr.appendChild(td3);
-          tbody.appendChild(tr);
-        }
+        const z = data.zone ? data.zone.name + " · " + data.zone.id : "";
+        const tok = data.token_status || (data.configured ? "ok" : "");
+        line.textContent = (data.configured ? "Токен: " + tok : "") + (z ? " · зона: " + z : "");
+        if (data.zone_error) line.textContent += " · " + data.zone_error;
+        if (data.token_error) line.textContent = "Токен: " + data.token_error;
+        renderCfDnsCfTable(data);
+        renderCfDnsPanelTable(Array.isArray(data.servers) ? data.servers : []);
+        if (!skipFullJson) cfDnsShowJson(data);
       } catch (e) {
-        empty.hidden = false;
-        table.hidden = true;
-        empty.textContent = "Ошибка загрузки: " + (e.message || e);
+        line.textContent = "Ошибка: " + (e.message || e);
         cfDnsShowErr(e);
       }
     }
@@ -1831,141 +1830,31 @@
       return items;
     }
 
-    function collectCfDnsPanelCheckedIds() {
-      const tbody = $("cf-dns-panel-tbody");
-      if (!tbody) return [];
-      const ids = [];
-      for (const tr of tbody.querySelectorAll("tr")) {
-        const chk = tr.querySelector(".cf-dns-panel-chk");
-        if (!chk || !chk.checked) continue;
-        const sid = String(tr.dataset.serverId || "").trim();
-        if (sid) ids.push(sid);
+    async function postCfDnsPanelSync(dryRun) {
+      const items = collectCfDnsPanelItems();
+      if (!items.length) {
+        alert("Отметьте серверы с IPv4 и укажите поддомен для каждой строки");
+        return;
       }
-      return ids;
+      if (!dryRun && !confirm("Изменить A-записи в Cloudflare по выбранным серверам?")) return;
+      try {
+        const data = await apiJson("/api/cloud/cloudflare/sync-panel-servers", {
+          method: "POST",
+          body: { items, proxied: false, ttl: 1, dry_run: dryRun },
+        });
+        cfDnsShowLog(data.log);
+        cfDnsShowJson(data);
+        await refreshCfDnsOverview(true);
+      } catch (e) {
+        cfDnsShowErr(e);
+      }
     }
 
-    $("btn-cf-dns-load-panel").addEventListener("click", () => loadCfDnsPanelTable().catch((e) => console.error(e)));
-
-    $("btn-cf-dns-panel-dry").addEventListener("click", async () => {
-      const items = collectCfDnsPanelItems();
-      if (!items.length) {
-        alert("Отметьте серверы с IPv4 и заполните поддомен для каждой строки");
-        return;
-      }
-      try {
-        const data = await apiJson("/api/cloud/cloudflare/sync-panel-servers", {
-          method: "POST",
-          body: {
-            items,
-            proxied: $("cf-dns-proxied").checked,
-            ttl: cfDnsPanelTtl(),
-            dry_run: true,
-          },
-        });
-        cfDnsShowJson(data);
-      } catch (e) {
-        cfDnsShowErr(e);
-      }
-    });
-
-    $("btn-cf-dns-panel-sync").addEventListener("click", async () => {
-      const items = collectCfDnsPanelItems();
-      if (!items.length) {
-        alert("Отметьте серверы с IPv4 и заполните поддомен для каждой строки");
-        return;
-      }
-      if (!confirm("Записать в Cloudflare A-записи для выбранных серверов?")) return;
-      try {
-        const data = await apiJson("/api/cloud/cloudflare/sync-panel-servers", {
-          method: "POST",
-          body: {
-            items,
-            proxied: $("cf-dns-proxied").checked,
-            ttl: cfDnsPanelTtl(),
-            dry_run: false,
-          },
-        });
-        cfDnsShowJson(data);
-      } catch (e) {
-        cfDnsShowErr(e);
-      }
-    });
-
-    $("btn-cf-dns-union-dry").addEventListener("click", async () => {
-      const un = ($("cf-dns-union-name").value || "").trim();
-      const server_ids = collectCfDnsPanelCheckedIds();
-      if (!un) {
-        alert("Укажите один поддомен для всех отмеченных");
-        return;
-      }
-      if (!server_ids.length) {
-        alert("Отметьте серверы (желательно с IPv4 в поле «хост»)");
-        return;
-      }
-      try {
-        const data = await apiJson("/api/cloud/cloudflare/sync-panel-servers", {
-          method: "POST",
-          body: {
-            union_subdomain: un,
-            server_ids,
-            proxied: $("cf-dns-proxied").checked,
-            ttl: cfDnsPanelTtl(),
-            dry_run: true,
-          },
-        });
-        cfDnsShowJson(data);
-      } catch (e) {
-        cfDnsShowErr(e);
-      }
-    });
-
-    $("btn-cf-dns-union-sync").addEventListener("click", async () => {
-      const un = ($("cf-dns-union-name").value || "").trim();
-      const server_ids = collectCfDnsPanelCheckedIds();
-      if (!un) {
-        alert("Укажите один поддомен для всех отмеченных");
-        return;
-      }
-      if (!server_ids.length) {
-        alert("Отметьте серверы");
-        return;
-      }
-      if (!confirm("Создать несколько A-записей на «" + un + "» для IP всех отмеченных серверов?")) return;
-      try {
-        const data = await apiJson("/api/cloud/cloudflare/sync-panel-servers", {
-          method: "POST",
-          body: {
-            union_subdomain: un,
-            server_ids,
-            proxied: $("cf-dns-proxied").checked,
-            ttl: cfDnsPanelTtl(),
-            dry_run: false,
-          },
-        });
-        cfDnsShowJson(data);
-      } catch (e) {
-        cfDnsShowErr(e);
-      }
-    });
-
-    $("btn-cf-dns-sync-config-dry").addEventListener("click", async () => {
-      try {
-        const data = await apiJson("/api/cloud/cloudflare/sync-config?dry_run=true", { method: "POST" });
-        cfDnsShowJson(data);
-      } catch (e) {
-        cfDnsShowErr(e);
-      }
-    });
-
-    $("btn-cf-dns-sync-config").addEventListener("click", async () => {
-      if (!confirm("Применить синхронизацию DNS по всем целям из .env (CLOUDFLARE_DNS_TARGETS_*)?")) return;
-      try {
-        const data = await apiJson("/api/cloud/cloudflare/sync-config?dry_run=false", { method: "POST" });
-        cfDnsShowJson(data);
-      } catch (e) {
-        cfDnsShowErr(e);
-      }
-    });
+    $("btn-cf-dns-overview").addEventListener("click", () =>
+      refreshCfDnsOverview(false).catch((e) => console.error(e))
+    );
+    $("btn-cf-dns-panel-dry").addEventListener("click", () => postCfDnsPanelSync(true).catch((e) => console.error(e)));
+    $("btn-cf-dns-panel-sync").addEventListener("click", () => postCfDnsPanelSync(false).catch((e) => console.error(e)));
   }
 
   document.querySelectorAll(".topbar-tab").forEach((btn) => {

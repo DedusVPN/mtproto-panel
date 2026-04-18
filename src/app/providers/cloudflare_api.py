@@ -117,6 +117,29 @@ class CloudflareClient:
             page += 1
         return out
 
+    async def list_all_a_records(self, zone_id: str) -> list[dict[str, Any]]:
+        """Все A-записи зоны (постранично)."""
+        out: list[dict[str, Any]] = []
+        page = 1
+        while True:
+            body = await self._request(
+                "GET",
+                f"/zones/{zone_id}/dns_records",
+                params={"type": "A", "page": page, "per_page": 100},
+            )
+            res = body.get("result")
+            if not isinstance(res, list):
+                break
+            out.extend([x for x in res if isinstance(x, dict)])
+            info = body.get("result_info")
+            total_pages = 1
+            if isinstance(info, dict) and isinstance(info.get("total_pages"), int):
+                total_pages = max(1, int(info["total_pages"]))
+            if page >= total_pages:
+                break
+            page += 1
+        return out
+
     async def create_a(
         self,
         zone_id: str,
@@ -162,6 +185,13 @@ class CloudflareClient:
                 continue
             by_content.setdefault(content, []).append(rid)
 
+        id_to_row: dict[str, tuple[str, str]] = {}
+        for rec in existing:
+            rid = rec.get("id")
+            content = rec.get("content")
+            if isinstance(rid, str) and isinstance(content, str):
+                id_to_row[rid] = (fqdn, content)
+
         to_delete: list[str] = []
         to_create: list[str] = []
 
@@ -178,6 +208,23 @@ class CloudflareClient:
 
         deleted: list[str] = []
         created: list[str] = []
+        log: list[str] = []
+
+        for rid in to_delete:
+            row = id_to_row.get(rid, (fqdn, "?"))
+            if dry_run:
+                log.append(f"[dry-run] Удалить A: id={rid}, name={row[0]}, ip={row[1]}")
+            else:
+                log.append(f"Удалено A: id={rid}, name={row[0]}, ip={row[1]}")
+
+        for ip in to_create:
+            if dry_run:
+                log.append(f"[dry-run] Создать A: name={fqdn}, ip={ip}, proxied={proxied}, ttl={ttl}")
+            else:
+                log.append(f"Создано A: name={fqdn}, ip={ip}, proxied={proxied}, ttl={ttl}")
+
+        if not log:
+            log.append("Изменений нет: набор A уже совпадает с желаемыми IP.")
 
         if dry_run:
             return {
@@ -186,6 +233,7 @@ class CloudflareClient:
                 "would_delete": to_delete,
                 "would_create": to_create,
                 "desired": desired,
+                "log": log,
             }
 
         for rid in to_delete:
@@ -206,4 +254,5 @@ class CloudflareClient:
             "created_ips": created,
             "desired": desired,
             "actual": final_ips,
+            "log": log,
         }

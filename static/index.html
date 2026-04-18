@@ -476,23 +476,32 @@
               <div class="cf-dns-wrap" id="cf-dns-panel">
                 <p class="hint cf-dns-line" id="cf-dns-line"></p>
                 <div class="cf-dns-actions">
-                  <button type="button" class="btn btn-ghost btn-sm" id="btn-cf-dns-status">Статус</button>
-                  <button type="button" class="btn btn-ghost btn-sm" id="btn-cf-dns-list">Список A</button>
-                  <button type="button" class="btn btn-ghost btn-sm" id="btn-cf-dns-dry">Dry-run</button>
-                  <button type="button" class="btn btn-primary btn-sm" id="btn-cf-dns-sync">Применить</button>
+                  <button type="button" class="btn btn-ghost btn-sm" id="btn-cf-dns-overview">Обновить сводку</button>
+                  <button type="button" class="btn btn-ghost btn-sm" id="btn-cf-dns-panel-dry">Dry-run (лог)</button>
+                  <button type="button" class="btn btn-primary btn-sm" id="btn-cf-dns-panel-sync">Применить в Cloudflare</button>
                 </div>
 
-                <div class="cf-dns-subhead">Из серверов панели</div>
-                <p class="hint cf-dns-panel-hint">
-                  Подставляются сохранённые серверы (<code>data/servers.json</code>). В Cloudflare уходит только
-                  <strong>IPv4</strong> из поля «хост»; если там доменное имя — сначала смените хост на IP или
-                  используйте ручной ввод ниже.
-                </p>
-                <div class="cf-dns-actions">
-                  <button type="button" class="btn btn-ghost btn-sm" id="btn-cf-dns-load-panel">Обновить список</button>
-                  <button type="button" class="btn btn-ghost btn-sm" id="btn-cf-dns-panel-dry">Выбранные → DNS (dry-run)</button>
-                  <button type="button" class="btn btn-primary btn-sm" id="btn-cf-dns-panel-sync">Выбранные → DNS</button>
+                <div class="cf-dns-subhead">A-записи в зоне и связь с панелью (по IP)</div>
+                <p class="hint cf-dns-panel-hint" id="cf-dns-cf-hint"></p>
+                <div class="cf-dns-panel-table-wrap">
+                  <table class="cf-dns-panel-table" id="cf-dns-cf-table" hidden>
+                    <thead>
+                      <tr>
+                        <th>Поддомен</th>
+                        <th>IP</th>
+                        <th>Серверы панели</th>
+                      </tr>
+                    </thead>
+                    <tbody id="cf-dns-cf-tbody"></tbody>
+                  </table>
+                  <p class="hint cf-dns-panel-empty" id="cf-dns-cf-empty">Нажмите «Обновить сводку».</p>
                 </div>
+
+                <div class="cf-dns-subhead">Изменить поддомены (серверы панели)</div>
+                <p class="hint cf-dns-panel-hint">
+                  В DNS попадает только <strong>IPv4</strong> из поля «хост» в карточке сервера. Отметьте строки и
+                  при необходимости поправьте поддомен. Несколько серверов с одним поддоменом — несколько A на одно имя.
+                </p>
                 <div class="cf-dns-panel-table-wrap">
                   <table class="cf-dns-panel-table" id="cf-dns-panel-table" hidden>
                     <thead>
@@ -500,73 +509,23 @@
                         <th class="cf-dns-col-check"></th>
                         <th>Сервер</th>
                         <th>Хост</th>
-                        <th>Поддомен в зоне</th>
+                        <th>Поддомен</th>
                       </tr>
                     </thead>
                     <tbody id="cf-dns-panel-tbody"></tbody>
                   </table>
-                  <p class="hint cf-dns-panel-empty" id="cf-dns-panel-empty">Нажмите «Обновить список».</p>
-                </div>
-                <div class="cf-dns-union-row">
-                  <div class="field field-tight cf-dns-union-field">
-                    <label for="cf-dns-union-name">Один поддомен на всех отмеченных (несколько A)</label>
-                    <input
-                      class="input input-mono"
-                      id="cf-dns-union-name"
-                      type="text"
-                      placeholder="например mt-all"
-                      autocomplete="off"
-                    />
-                  </div>
-                  <div class="cf-dns-actions cf-dns-union-actions">
-                    <button type="button" class="btn btn-ghost btn-sm" id="btn-cf-dns-union-dry">Все IP → одно имя (dry-run)</button>
-                    <button type="button" class="btn btn-primary btn-sm" id="btn-cf-dns-union-sync">Все IP → одно имя</button>
-                  </div>
+                  <p class="hint cf-dns-panel-empty" id="cf-dns-panel-empty">Сначала обновите сводку.</p>
                 </div>
 
-                <div class="cf-dns-subhead cf-dns-subhead-muted">Ручной ввод и .env (по желанию)</div>
-                <div class="cf-dns-actions cf-dns-actions-row2">
-                  <button type="button" class="btn btn-ghost btn-sm" id="btn-cf-dns-sync-config-dry">
-                    Синхр. из .env (dry-run)
-                  </button>
-                  <button type="button" class="btn btn-ghost btn-sm" id="btn-cf-dns-sync-config">Синхр. из .env</button>
-                </div>
-                <div class="cf-dns-form">
-                  <div class="field field-tight">
-                    <label for="cf-dns-name">Поддомен (относительно зоны)</label>
-                    <input
-                      class="input input-mono"
-                      id="cf-dns-name"
-                      type="text"
-                      placeholder="mtproxy или @"
-                      autocomplete="off"
-                    />
-                  </div>
-                  <div class="field field-tight">
-                    <label for="cf-dns-ips">IPv4 через запятую</label>
-                    <input
-                      class="input input-mono"
-                      id="cf-dns-ips"
-                      type="text"
-                      placeholder="203.0.113.1, 203.0.113.2"
-                      autocomplete="off"
-                    />
-                  </div>
-                  <div class="field field-tight">
-                    <label for="cf-dns-ttl">TTL (1 = auto)</label>
-                    <input class="input" id="cf-dns-ttl" type="number" min="1" value="1" step="1" />
-                  </div>
-                  <label class="check cf-dns-check">
-                    <input type="checkbox" id="cf-dns-proxied" />
-                    <span>Proxied (облако CF; только один IP на имя)</span>
-                  </label>
-                </div>
-                <pre class="log cf-dns-out log-empty" id="cf-dns-out">Нажмите «Статус» или введите имя и IP.</pre>
+                <div class="cf-dns-subhead">Лог действий</div>
+                <pre class="log cf-dns-log log-empty" id="cf-dns-log">После dry-run или применения здесь будет пошаговый лог.</pre>
+                <details class="cf-dns-details">
+                  <summary>Ответ API (JSON)</summary>
+                  <pre class="log cf-dns-out log-empty" id="cf-dns-out"></pre>
+                </details>
                 <p class="hint cf-dns-docs">
-                  <code>CLOUDFLARE_API_TOKEN</code> и зона (<code>CLOUDFLARE_ZONE_ID</code> или
-                  <code>CLOUDFLARE_ZONE_NAME</code>). Переменные <code>CLOUDFLARE_DNS_TARGETS_*</code> — только для
-                  автоматизации без панели (cron, CI). CLI:
-                  <code>uv run python scripts/cloudflare_sync_dns.py --dry-run</code>.
+                  <code>CLOUDFLARE_API_TOKEN</code>, <code>CLOUDFLARE_ZONE_ID</code> или
+                  <code>CLOUDFLARE_ZONE_NAME</code>.
                   <a href="https://developers.cloudflare.com/api/" target="_blank" rel="noopener">API Cloudflare</a>.
                 </p>
               </div>

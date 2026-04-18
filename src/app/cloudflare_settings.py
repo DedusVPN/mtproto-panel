@@ -20,7 +20,7 @@ if _DOTENV_PATH.is_file():
 
 
 class CloudflareSettings(BaseSettings):
-    """Токен и зона Cloudflare для DNS API; цели синхронизации — файл или JSON в переменной."""
+    """Токен и зона Cloudflare для DNS API."""
 
     model_config = SettingsConfigDict(**_settings_kw)
 
@@ -31,14 +31,6 @@ class CloudflareSettings(BaseSettings):
     )
     zone_id: str = Field(default="", description="Идентификатор зоны (предпочтительно)")
     zone_name: str = Field(default="", description="Корневой домен зоны, если zone_id не задан")
-    dns_targets_file: Path | None = Field(
-        default=None,
-        description="Путь к JSON с массивом записей для массовой синхронизации",
-    )
-    dns_targets_json: str = Field(
-        default="",
-        description='JSON: {"records":[...]} или массив [...] с элементами {name, ips, proxied?, ttl?}',
-    )
 
     @field_validator("api_token", mode="before")
     @classmethod
@@ -65,25 +57,8 @@ class CloudflareSettings(BaseSettings):
             return ""
         return str(v).strip()
 
-    @field_validator("dns_targets_file", mode="before")
-    @classmethod
-    def empty_path_none(cls, v: object) -> Path | None:
-        if v is None or v == "":
-            return None
-        if isinstance(v, Path):
-            return v if str(v).strip() else None
-        s = str(v).strip()
-        if not s:
-            return None
-        p = Path(s)
-        if not p.is_absolute():
-            p = _REPO_ROOT / p
-        return p
-
     @model_validator(mode="after")
     def zone_hint(self) -> CloudflareSettings:
-        if not self.zone_id.strip() and not self.zone_name.strip():
-            pass  # допускается для частичной конфигурации (только проверка токена)
         return self
 
 

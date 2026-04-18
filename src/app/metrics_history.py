@@ -8,7 +8,7 @@ import time
 from pathlib import Path
 from typing import Any
 
-from app.metrics_prom import parse_prometheus_sample_lines, telemt_metrics_subset
+from app.metrics_prom import parse_prometheus_sample_lines
 
 _DATA_DIR = Path(__file__).resolve().parents[2] / "data"
 _FILE = _DATA_DIR / "metrics_history.json"
@@ -53,9 +53,8 @@ def _prune_server_points(points: list[dict[str, Any]], cutoff: float) -> list[di
 
 
 async def append_snapshot(server_id: str, raw_metrics: str) -> dict[str, Any]:
-    """Парсит текст, добавляет точку, обрезает старше 48 ч."""
+    """Парсит текст, добавляет точку (все числовые серии), обрезает старше 48 ч."""
     parsed_full = parse_prometheus_sample_lines(raw_metrics)
-    slim = telemt_metrics_subset(parsed_full)
     t = _now()
     cutoff = t - _RETENTION_SEC
     async with _lock:
@@ -64,11 +63,11 @@ async def append_snapshot(server_id: str, raw_metrics: str) -> dict[str, Any]:
         lst = servers.get(server_id)
         if not isinstance(lst, list):
             lst = []
-        lst.append({"t": t, "m": slim})
+        lst.append({"t": t, "m": parsed_full})
         lst = _prune_server_points(lst, cutoff)
         servers[server_id] = lst
         _write_atomic(doc)
-    return {"t": t, "m": slim, "retention_hours": 48}
+    return {"t": t, "m": parsed_full, "retention_hours": 48}
 
 
 async def list_history(server_id: str) -> list[dict[str, Any]]:

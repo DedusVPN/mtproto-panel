@@ -45,6 +45,55 @@ def telemt_metrics_subset(parsed: dict[str, float]) -> dict[str, float]:
     return slim
 
 
+def parse_prometheus_help_type(text: str) -> tuple[dict[str, str], dict[str, str]]:
+    """
+    Извлекает из exposition-строки комментарии # HELP и # TYPE.
+    Ключ — имя метрики без меток (как в спецификации Prometheus).
+    """
+    help_map: dict[str, str] = {}
+    type_map: dict[str, str] = {}
+    for raw in text.splitlines():
+        line = raw.strip()
+        if line.startswith("# HELP "):
+            rest = line[7:].strip()
+            i = rest.find(" ")
+            if i > 0:
+                name, desc = rest[:i].strip(), rest[i + 1 :].strip()
+                if name:
+                    help_map[name] = desc
+        elif line.startswith("# TYPE "):
+            rest = line[7:].strip()
+            parts = rest.split(None, 2)
+            if len(parts) >= 2:
+                name, typ = parts[0], parts[1].strip()
+                if name:
+                    type_map[name] = typ
+    return help_map, type_map
+
+
+def metric_base_name(full_key: str) -> str:
+    """Имя метрики без label-set, например telemt_x из telemt_x{a=\"b\"}."""
+    return full_key.split("{", 1)[0] if "{" in full_key else full_key
+
+
+def build_metric_rows(raw: str, parsed: dict[str, float]) -> list[dict[str, Any]]:
+    """Сортированные строки для таблицы UI: ключ, значение, HELP, TYPE."""
+    help_m, type_m = parse_prometheus_help_type(raw)
+    rows: list[dict[str, Any]] = []
+    for key in sorted(parsed.keys()):
+        base = metric_base_name(key)
+        rows.append(
+            {
+                "key": key,
+                "base": base,
+                "value": parsed[key],
+                "help": help_m.get(base),
+                "type": type_m.get(base),
+            }
+        )
+    return rows
+
+
 def build_stats_cards(parsed: dict[str, float]) -> dict[str, Any]:
     """Сводка для карточек UI из последнего снимка."""
     p = telemt_metrics_subset(parsed)

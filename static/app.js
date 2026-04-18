@@ -29,6 +29,9 @@
 
   let statsPollTimer = null;
   const chartHandles = {};
+  let cachedMetricsRows = [];
+  let cachedMetricsRaw = "";
+  let cachedMetricsRawTruncated = false;
 
   let journalWs = null;
   let presetsCache = [];
@@ -856,6 +859,168 @@
     return Number.isInteger(n) ? n.toLocaleString("ru-RU") : n.toLocaleString("ru-RU", { maximumFractionDigits: 3 });
   }
 
+  function metricRowsFromMap(m) {
+    if (!m || typeof m !== "object") return [];
+    return Object.keys(m)
+      .sort()
+      .map((key) => ({
+        key,
+        base: key.indexOf("{") >= 0 ? key.split("{", 1)[0] : key,
+        value: m[key],
+        help: null,
+        type: null,
+      }));
+  }
+
+  function filterMetricRows(rows, q) {
+    const s = (q || "").trim().toLowerCase();
+    if (!s) return rows.slice();
+    return rows.filter((r) => {
+      const hay = (
+        r.key +
+        "\n" +
+        (r.help || "") +
+        "\n" +
+        (r.type || "") +
+        "\n" +
+        String(r.value)
+      ).toLowerCase();
+      return hay.indexOf(s) !== -1;
+    });
+  }
+
+  function updateRawMetricsPre() {
+    const pre = $("stats-raw-pre");
+    const hint = $("stats-raw-hint");
+    if (pre) pre.textContent = cachedMetricsRaw || "";
+    if (hint) {
+      hint.textContent = cachedMetricsRaw
+        ? cachedMetricsRawTruncated
+          ? "Текст усечён при передаче с API панели (защитный лимит). На сервере Telemt отдаётся полный ответ."
+          : "Полный текст последнего успешного снимка (" + (cachedMetricsRaw.length || 0).toLocaleString("ru-RU") + " символов)."
+        : "Сырой Prometheus-текст появится после успешного снимка.";
+    }
+  }
+
+  function renderMetricsTableDom() {
+    const wrap = $("stats-metrics-wrap");
+    const countEl = $("stats-metrics-count");
+    if (!wrap) return;
+    const q = ($("stats-metrics-filter") && $("stats-metrics-filter").value) || "";
+    const grouped = $("stats-metrics-grouped") && $("stats-metrics-grouped").checked;
+    const rows = filterMetricRows(cachedMetricsRows, q);
+    if (countEl) {
+      countEl.textContent = rows.length
+        ? rows.length.toLocaleString("ru-RU") + " серий" + (cachedMetricsRows.length ? " (всего " + cachedMetricsRows.length + ")" : "")
+        : cachedMetricsRows.length
+          ? "0 по фильтру · всего " + cachedMetricsRows.length
+          : "Нет данных";
+    }
+    wrap.textContent = "";
+    if (!rows.length) {
+      const p = document.createElement("p");
+      p.className = "hint";
+      p.style.margin = "0.75rem";
+      p.textContent = "Нет строк. Снимите метрики или ослабьте фильтр.";
+      wrap.appendChild(p);
+      return;
+    }
+
+    function appendTableForRows(target, rowList) {
+      const table = document.createElement("table");
+      table.className = "stats-metrics-table";
+      const thead = document.createElement("thead");
+      const trh = document.createElement("tr");
+      ["#", "Имя (ключ)", "TYPE", "Значение", "HELP"].forEach((h) => {
+        const th = document.createElement("th");
+        th.textContent = h;
+        trh.appendChild(th);
+      });
+      thead.appendChild(trh);
+      const tbody = document.createElement("tbody");
+      rowList.forEach((r, i) => {
+        const tr = document.createElement("tr");
+        const cells = [String(i + 1), r.key, r.type || "—", fmtNum(r.value), r.help || "—"];
+        cells.forEach((cell, ci) => {
+          const td = document.createElement("td");
+          td.textContent = cell;
+          if (ci === 1 || ci === 4) td.className = "mono td-wrap";
+          if (ci === 3) td.className = "mono td-num";
+          tr.appendChild(td);
+        });
+        tbody.appendChild(tr);
+      });
+      table.appendChild(thead);
+      table.appendChild(tbody);
+      target.appendChild(table);
+    }
+
+    if (!grouped) {
+      appendTableForRows(wrap, rows);
+      return;
+    }
+
+    const byBase = new Map();
+    rows.forEach((r) => {
+      if (!byBase.has(r.base)) byBase.set(r.base, []);
+      byBase.get(r.base).push(r);
+    });
+    const bases = Array.from(byBase.keys()).sort();
+    bases.forEach((base) => {
+      const sub = byBase
+        .get(base)
+        .slice()
+        .sort((a, b) => a.key.localeCompare(b.key));
+      const det = document.createElement("details");
+      det.className = "metric-group";
+      det.open = true;
+      const sum = document.createElement("summary");
+      sum.className = "metric-group-summary";
+      sum.textContent = base + " · " + sub.length + " ряд(ов)";
+      det.appendChild(sum);
+      const help0 = sub[0] && sub[0].help;
+      if (help0) {
+        const hp = document.createElement("p");
+        hp.className = "hint metric-group-help";
+        hp.textContent = help0;
+        det.appendChild(hp);
+      }
+      appendTableForRows(det, sub);
+      wrap.appendChild(det);
+    });
+  }
+
+  function applyMetricsSnapshotPayload(j) {
+    cachedMetricsRows = Array.isArray(j.metrics_rows) ? j.metrics_rows : [];
+    cachedMetricsRaw = typeof j.raw_metrics === "string" ? j.raw_metrics : "";
+    cachedMetricsRawTruncated = !!j.raw_metrics_truncated;
+    updateRawMetricsPre();
+    renderMetricsTableDom();
+  }
+
+  async function loadMetricsTableFromHistory() {
+    const sid = selectedServerId;
+    if (!sid) {
+      cachedMetricsRows = [];
+      cachedMetricsRaw = "";
+      cachedMetricsRawTruncated = false;
+      updateRawMetricsPre();
+      renderMetricsTableDom();
+      return;
+    }
+    const r = await authFetch("/api/metrics/history?server_id=" + encodeURIComponent(sid));
+    if (!r.ok) return;
+    const data = await r.json();
+    const pts = Array.isArray(data.points) ? data.points : [];
+    const last = pts.length ? pts[pts.length - 1] : null;
+    const m = last && last.m ? last.m : {};
+    cachedMetricsRows = metricRowsFromMap(m);
+    cachedMetricsRaw = "";
+    cachedMetricsRawTruncated = false;
+    updateRawMetricsPre();
+    renderMetricsTableDom();
+  }
+
   function renderStatsCards(cards) {
     const host = $("stats-cards");
     if (!host) return;
@@ -1017,6 +1182,11 @@
       if (el) el.textContent = "Выберите сервер в боковой панели.";
       destroyStatCharts();
       renderStatsCards(null);
+      cachedMetricsRows = [];
+      cachedMetricsRaw = "";
+      cachedMetricsRawTruncated = false;
+      updateRawMetricsPre();
+      renderMetricsTableDom();
       return false;
     }
     try {
@@ -1027,24 +1197,32 @@
       if (!j.ok) {
         if (el) el.textContent = j.message || "Ошибка снимка";
         if (showAlert) alert(j.message || "Ошибка снимка");
+        await loadMetricsTableFromHistory();
         return false;
       }
       if (el) {
+        const bytes =
+          j.raw_metrics_bytes != null
+            ? " · raw UTF-8: " + Number(j.raw_metrics_bytes).toLocaleString("ru-RU") + " байт"
+            : "";
         el.textContent =
           "Снимок " +
           new Date(j.t * 1000).toLocaleString("ru-RU") +
           " · точек в истории: " +
           (j.points_total ?? "?") +
           " · серий: " +
-          (j.metrics_series ?? "?");
+          (j.metrics_series ?? "?") +
+          bytes;
       }
       renderStatsCards(j.cards);
+      applyMetricsSnapshotPayload(j);
       await renderStatsChartsFromHistory();
       return true;
     } catch (e) {
       const msg = e.message || String(e);
       if (el) el.textContent = msg;
       if (showAlert) alert(msg);
+      await loadMetricsTableFromHistory();
       return false;
     }
   }
@@ -1357,6 +1535,41 @@
       }
     });
   }
+
+  (function wireStatsMetricsUi() {
+    const f = $("stats-metrics-filter");
+    if (f) f.addEventListener("input", () => renderMetricsTableDom());
+    const g = $("stats-metrics-grouped");
+    if (g) g.addEventListener("change", () => renderMetricsTableDom());
+    const bTsv = $("btn-stats-copy-tsv");
+    if (bTsv) {
+      bTsv.addEventListener("click", async () => {
+        const q = (f && f.value) || "";
+        const rows = filterMetricRows(cachedMetricsRows, q);
+        const lines = rows.map((r) =>
+          [r.key, r.type || "", String(r.value), (r.help || "").replace(/\r?\n/g, " ").replace(/\t/g, " ")].join("\t")
+        );
+        const text = "key\ttype\tvalue\thelp\n" + lines.join("\n");
+        try {
+          await navigator.clipboard.writeText(text);
+          appendLog("TSV метрик скопирован в буфер обмена.");
+        } catch {
+          alert("Не удалось скопировать в буфер обмена");
+        }
+      });
+    }
+    const bRaw = $("btn-stats-copy-raw");
+    if (bRaw) {
+      bRaw.addEventListener("click", async () => {
+        try {
+          await navigator.clipboard.writeText(cachedMetricsRaw || "");
+          appendLog("Сырой текст /metrics скопирован в буфер обмена.");
+        } catch {
+          alert("Не удалось скопировать");
+        }
+      });
+    }
+  })();
 
   async function ensurePanelSession() {
     const st = await authFetch("/api/auth/status");

@@ -97,6 +97,38 @@
                 <canvas id="chart-user-cur" height="120"></canvas>
               </div>
             </div>
+
+            <section class="panel stats-full-panel">
+              <div class="panel-head stats-full-head">
+                <h2>Полный мониторинг</h2>
+                <span class="panel-meta" id="stats-metrics-count"></span>
+              </div>
+              <p class="hint">
+                Все числовые серии из ответа <code>/metrics</code> и комментарии <code># HELP</code> / <code># TYPE</code> с
+                сервера. История хранит те же серии (без сырого текста и без HELP для старых точек).
+              </p>
+              <div class="stats-metrics-toolbar">
+                <input
+                  type="search"
+                  class="input stats-filter"
+                  id="stats-metrics-filter"
+                  placeholder="Фильтр: имя метрики, HELP, TYPE или значение…"
+                  autocomplete="off"
+                />
+                <label class="check stats-group-check">
+                  <input type="checkbox" id="stats-metrics-grouped" />
+                  <span>Группировать по базовому имени</span>
+                </label>
+                <button type="button" class="btn btn-secondary btn-sm" id="btn-stats-copy-tsv">Копировать TSV</button>
+                <button type="button" class="btn btn-secondary btn-sm" id="btn-stats-copy-raw">Копировать raw</button>
+              </div>
+              <div id="stats-metrics-wrap" class="stats-metrics-wrap" aria-live="polite"></div>
+              <details class="stats-raw-details">
+                <summary>Сырой ответ /metrics (Prometheus text)</summary>
+                <p class="hint stats-raw-hint" id="stats-raw-hint"></p>
+                <pre class="stats-raw-pre" id="stats-raw-pre"></pre>
+              </details>
+            </section>
           </div>
         </div>
 

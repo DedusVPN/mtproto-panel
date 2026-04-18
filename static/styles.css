@@ -221,6 +221,141 @@ body {
   max-height: min(50vh, 480px);
 }
 
+.stats-full-panel {
+  margin-top: 0.85rem;
+}
+
+.stats-full-head {
+  align-items: center;
+}
+
+.stats-metrics-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+  align-items: center;
+  margin-bottom: 0.65rem;
+}
+
+.stats-metrics-toolbar .stats-filter {
+  flex: 1;
+  min-width: 200px;
+}
+
+.stats-group-check {
+  font-size: 0.78rem;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.stats-metrics-wrap {
+  max-height: min(72vh, 900px);
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg0);
+}
+
+.stats-metrics-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.72rem;
+}
+
+.stats-metrics-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--surface2);
+  color: var(--muted);
+  text-align: left;
+  padding: 0.45rem 0.5rem;
+  border-bottom: 1px solid var(--border);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-size: 0.65rem;
+}
+
+.stats-metrics-table tbody td {
+  padding: 0.35rem 0.5rem;
+  border-bottom: 1px solid rgba(42, 49, 66, 0.65);
+  vertical-align: top;
+}
+
+.stats-metrics-table tbody tr:hover td {
+  background: rgba(99, 102, 241, 0.06);
+}
+
+.stats-metrics-table .mono {
+  font-family: var(--mono);
+  font-size: 0.7rem;
+}
+
+.stats-metrics-table .td-num {
+  text-align: right;
+  white-space: nowrap;
+}
+
+.stats-metrics-table .td-wrap {
+  word-break: break-word;
+  max-width: 42vw;
+}
+
+.metric-group {
+  border-bottom: 1px solid var(--border);
+  padding: 0.35rem 0.5rem;
+}
+
+.metric-group:last-child {
+  border-bottom: none;
+}
+
+.metric-group-summary {
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 0.78rem;
+  color: var(--accent-hover);
+  padding: 0.35rem 0;
+}
+
+.metric-group-help {
+  margin: 0.25rem 0 0.4rem;
+  font-size: 0.72rem;
+  color: var(--muted);
+  line-height: 1.35;
+}
+
+.stats-raw-details {
+  margin-top: 0.85rem;
+}
+
+.stats-raw-details summary {
+  cursor: pointer;
+  font-weight: 600;
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.stats-raw-hint {
+  margin: 0.35rem 0 0.5rem;
+}
+
+.stats-raw-pre {
+  margin: 0;
+  max-height: 320px;
+  overflow: auto;
+  padding: 0.65rem 0.75rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--bg0);
+  font-family: var(--mono);
+  font-size: 0.65rem;
+  line-height: 1.4;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
 .sidebar {
   width: 280px;
   flex-shrink: 0;

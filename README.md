@@ -32,4 +32,4 @@ bash deploy/init_docker_secrets.sh '<пароль_панели>'
 docker compose up -d --build
 ```
 
-Секреты в `/run/secrets/` монтируются как **root:root**; приложение работает от пользователя **panel**. Скрипт `deploy/docker-entrypoint.sh` копирует их в `/tmp` с правами для uid 1000 и только потом запускает uvicorn (в compose добавлены `SETUID`/`SETGID` из‑за `cap_drop: ALL`).
+Секреты в `/run/secrets/` — **root:root 0400**; `deploy/docker-entrypoint.sh` копирует их в `/tmp` с режимом **0444** (без `chown`: при `cap_drop: ALL` нет `CAP_CHOWN`), затем запускает uvicorn от **panel** через `setpriv` (в compose нужны `SETUID`/`SETGID`).

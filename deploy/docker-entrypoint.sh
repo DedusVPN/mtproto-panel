@@ -1,13 +1,13 @@
 #!/bin/sh
 set -e
-# Compose кладёт файлы в /run/secrets как root:root mode 0400 — пользователь panel не может их читать.
-# Копируем во writable /tmp с владельцем panel (uid 1000), затем сбрасываем привилегии.
+# /run/secrets/* — root:root 0400; panel не читает. Копируем в /tmp без chown (при cap_drop:ALL нет CAP_CHOWN):
+# режим 0444 — только чтение, любой uid в контейнере может прочитать (секрет не покидает контейнер).
 if [ -f /run/secrets/panel_jwt_secret ]; then
-  install -o 1000 -g 1000 -m 0400 /run/secrets/panel_jwt_secret /tmp/panel_jwt_secret
+  install -m 0444 /run/secrets/panel_jwt_secret /tmp/panel_jwt_secret
   export PANEL_JWT_SECRET_FILE=/tmp/panel_jwt_secret
 fi
 if [ -f /run/secrets/panel_admin_password_hash ]; then
-  install -o 1000 -g 1000 -m 0400 /run/secrets/panel_admin_password_hash /tmp/panel_admin_password_hash
+  install -m 0444 /run/secrets/panel_admin_password_hash /tmp/panel_admin_password_hash
   export PANEL_ADMIN_PASSWORD_HASH_FILE=/tmp/panel_admin_password_hash
 fi
 exec setpriv --reuid=1000 --regid=1000 --init-groups -- \

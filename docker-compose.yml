@@ -14,14 +14,16 @@ services:
   postgres:
     image: postgres:16-alpine
     restart: unless-stopped
-    environment:
-      POSTGRES_USER: ${POSTGRES_USER:-panel}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-panel}
-      POSTGRES_DB: ${POSTGRES_DB:-panel}
+    # Переменные в контейнере: сначала дефолты, затем .env из корня (ваши POSTGRES_* перекрывают).
+    # Подстановка ${...} в YAML не читает env_file — только shell и файл .env для интерполяции compose.
+    env_file:
+      - deploy/postgres.default.env
+      - path: .env
+        required: false
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U panel -d panel"]
+      test: ["CMD-SHELL", "pg_isready -U \"$$POSTGRES_USER\" -d \"$$POSTGRES_DB\" || exit 1"]
       interval: 5s
       timeout: 5s
       retries: 12
@@ -48,6 +50,7 @@ services:
     tmpfs:
       - /tmp:mode=1777,size=64M
     env_file:
+      - deploy/postgres.default.env
       - path: .env
         required: false
     environment:
@@ -60,7 +63,6 @@ services:
       PANEL_EXPOSE_OPENAPI: "false"
       UVICORN_HOST: "0.0.0.0"
       UVICORN_PORT: "8765"
-      DATABASE_URL: postgresql+asyncpg://panel:panel@postgres:5432/panel
     secrets:
       - panel_jwt_secret
       - panel_admin_password_hash

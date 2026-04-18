@@ -48,7 +48,9 @@ bash deploy/init_docker_secrets.sh '<пароль_панели>'
 docker compose up -d --build
 ```
 
-Сервис **postgres** поднимает БД с томом `postgres_data`; в compose по умолчанию пользователь/пароль **`panel`/`panel`** и **`DATABASE_URL`** на сервис `postgres`. Для продакшена задайте свой пароль и строку подключения через **`docker-compose.override.yml`** (и согласованные `POSTGRES_*` у `postgres` и `DATABASE_URL` у `panel`).
+Сервис **postgres** и контейнер **panel** подключают **`deploy/postgres.default.env`**, затем ваш **`.env`** (значения из `.env` перекрывают дефолты). Подстановка **`${VAR}` в самом YAML compose** берётся только из окружения shell и из файла **`.env`** при запуске `docker compose` — поэтому для Postgres используется цепочка **env_file**, а не `${POSTGRES_USER:-…}` в YAML.
+
+Если **`DATABASE_URL`** в `.env` не задан, **`deploy/docker-entrypoint.sh`** собирает его из **`POSTGRES_USER` / `POSTGRES_PASSWORD` / `POSTGRES_DB`** и хоста **`postgres`**. Для локального `uvicorn` задайте в `.env` свой **`DATABASE_URL`** (часто `@127.0.0.1`).
 
 Перед `uvicorn` entrypoint выполняет **`alembic upgrade head`** (повтор при недоступной БД).
 

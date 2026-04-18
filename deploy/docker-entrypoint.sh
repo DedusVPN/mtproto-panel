@@ -12,6 +12,13 @@ if [ -f /run/secrets/panel_admin_password_hash ]; then
 fi
 # Иначе у дочернего процесса остаётся HOME от root → expanduser("~") = /root/.ssh/…
 export HOME=/home/panel
+# В compose в контейнер попадают POSTGRES_* из .env (env_file); собираем DATABASE_URL, если не задан явно.
+if [ -z "${DATABASE_URL}" ]; then
+  u="${POSTGRES_USER:-panel}"
+  p="${POSTGRES_PASSWORD:-panel}"
+  db="${POSTGRES_DB:-panel}"
+  export DATABASE_URL="postgresql+asyncpg://${u}:${p}@postgres:5432/${db}"
+fi
 cd /app
 if [ -n "${DATABASE_URL}" ]; then
   i=0

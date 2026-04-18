@@ -1172,6 +1172,88 @@ details.sidebar-cloud[open] > .cloud-summary::before {
   color: var(--accent-hover);
 }
 
+.cf-dns-subhead {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--text);
+  margin-top: 0.35rem;
+}
+
+.cf-dns-subhead-muted {
+  color: var(--muted);
+  font-weight: 500;
+}
+
+.cf-dns-panel-hint {
+  font-size: 0.72rem;
+  margin: 0;
+}
+
+.cf-dns-panel-table-wrap {
+  margin-top: 0.35rem;
+  overflow-x: auto;
+}
+
+.cf-dns-panel-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.72rem;
+}
+
+.cf-dns-panel-table th,
+.cf-dns-panel-table td {
+  border: 1px solid var(--border);
+  padding: 0.35rem 0.4rem;
+  text-align: left;
+  vertical-align: middle;
+}
+
+.cf-dns-panel-table th {
+  color: var(--muted);
+  font-weight: 500;
+}
+
+.cf-dns-col-check {
+  width: 2rem;
+  text-align: center;
+}
+
+.cf-dns-mono {
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 0.68rem;
+}
+
+.cf-dns-bad-ip {
+  color: var(--danger, #c45);
+  font-size: 0.65rem;
+  white-space: nowrap;
+}
+
+.cf-dns-panel-name {
+  width: 100%;
+  min-width: 6rem;
+  font-size: 0.72rem;
+}
+
+.cf-dns-panel-empty {
+  margin: 0.25rem 0 0;
+  font-size: 0.72rem;
+}
+
+.cf-dns-union-row {
+  margin-top: 0.5rem;
+  padding-top: 0.45rem;
+  border-top: 1px dashed var(--border);
+}
+
+.cf-dns-union-field {
+  max-width: 22rem;
+}
+
+.cf-dns-union-actions {
+  margin-top: 0.35rem;
+}
+
 .login-gate {
   position: fixed;
   inset: 0;

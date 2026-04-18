@@ -80,3 +80,53 @@ class CloudflareSyncARequest(BaseModel):
         if self.proxied and len(self.ips) > 1:
             raise ValueError("Несколько IPv4 на одно имя несовместимо с proxied=true")
         return self
+
+
+class CloudflarePanelDnsRow(BaseModel):
+    """Сервер панели и желаемый поддомен (относительно зоны Cloudflare)."""
+
+    model_config = ConfigDict(extra="ignore")
+
+    server_id: Annotated[str, Field(..., min_length=1)]
+    name: Annotated[str, Field(..., min_length=1, max_length=253)]
+
+    @field_validator("server_id", "name", mode="after")
+    @classmethod
+    def strip_fields(cls, v: str) -> str:
+        return v.strip()
+
+
+class CloudflareSyncPanelServersRequest(BaseModel):
+    """
+    DNS по серверам из панели.
+
+    Режим 1 — поле items: каждая строка «server_id + поддомен»; одинаковые поддомены склеиваются
+    в несколько A на одно имя (несколько серверов → один хостнейм, несколько IP).
+
+    Режим 2 — union_subdomain + server_ids: все IPv4 выбранных серверов в одну A-группу с этим именем.
+    """
+
+    model_config = ConfigDict(extra="ignore")
+
+    items: list[CloudflarePanelDnsRow] = Field(default_factory=list)
+    union_subdomain: str | None = None
+    server_ids: list[str] = Field(default_factory=list)
+    proxied: bool = False
+    ttl: int = Field(1, ge=1, le=2147483647)
+    dry_run: bool = False
+
+    @model_validator(mode="after")
+    def mode_ok(self) -> CloudflareSyncPanelServersRequest:
+        us = (self.union_subdomain or "").strip()
+        if us:
+            if not self.server_ids:
+                raise ValueError("В режиме одного поддомена задайте непустой список server_ids")
+            if self.items:
+                raise ValueError("Нельзя одновременно передавать items и union_subdomain")
+        else:
+            if not self.items:
+                raise ValueError("Задайте items или пару union_subdomain + server_ids")
+        return self
+
+    def union_name(self) -> str:
+        return (self.union_subdomain or "").strip()

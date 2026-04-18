@@ -4,12 +4,18 @@ from typing import Any
 
 from fastapi import APIRouter, HTTPException, Query
 
-from app.cloudflare_schemas import CloudflareSyncARequest
+from app.cloudflare_panel import build_panel_dns_preview, ipv4_from_host
+from app.cloudflare_schemas import (
+    CloudflareSyncARequest,
+    CloudflareSyncPanelServersRequest,
+    normalize_ipv4_unique_list,
+)
 from app.cloud_settings import dotenv_configured, dotenv_path
 from app.cloudflare_settings import get_cloudflare_settings
 from app.cloudflare_targets import load_dns_targets_from_settings
 from app.http_shared import shared_http_client
 from app.providers.cloudflare_api import CloudflareApiError, CloudflareClient, fqdn_for_record
+from app.server_store import get_server, list_servers
 
 cloudflare_router = APIRouter(prefix="/api/cloud/cloudflare", tags=["cloud-cloudflare"])
 
@@ -131,6 +137,125 @@ async def cloudflare_sync_a_dry_run(body: CloudflareSyncARequest) -> dict[str, A
         _raise_cf(e)
     except ValueError as e:
         raise HTTPException(status_code=422, detail=str(e)) from e
+
+
+@cloudflare_router.get("/panel-servers-preview")
+async def cloudflare_panel_servers_preview() -> dict[str, Any]:
+    """Серверы из панели + подсказка поддомена; A-запись возможна только если «хост» — уже IPv4."""
+    servers = await list_servers()
+    return {"servers": build_panel_dns_preview(servers)}
+
+
+@cloudflare_router.post("/sync-panel-servers")
+async def cloudflare_sync_panel_servers(body: CloudflareSyncPanelServersRequest) -> dict[str, Any]:
+    """
+    Синхронизация A-записей из `servers.json`: либо таблица server_id→поддомен, либо один поддомен на все выбранные IP.
+    Несколько строк с одним поддоменом дают несколько A на одно имя (round-robin на стороне DNS).
+    """
+    c = _client()
+    try:
+        zid, zname = await c.resolve_zone_id()
+    except CloudflareApiError as e:
+        _raise_cf(e)
+
+    errors: list[dict[str, str]] = []
+    dry = body.dry_run
+
+    if body.union_name():
+        ips_acc: list[str] = []
+        for sid in body.server_ids:
+            sid = sid.strip()
+            if not sid:
+                continue
+            s = await get_server(sid)
+            if s is None:
+                errors.append({"server_id": sid, "error": "сервер не найден"})
+                continue
+            ip = ipv4_from_host(s.host)
+            if not ip:
+                errors.append(
+                    {"server_id": sid, "panel_name": s.name, "host": s.host, "error": "хост не IPv4 — укажите IP в карточке сервера"}
+                )
+                continue
+            ips_acc.append(ip)
+        try:
+            ips = normalize_ipv4_unique_list(ips_acc)
+        except ValueError as e:
+            raise HTTPException(status_code=422, detail=str(e)) from e
+        if body.proxied and len(ips) > 1:
+            raise HTTPException(
+                status_code=422,
+                detail="Несколько IPv4 на одно имя несовместимо с proxied=true",
+            )
+        try:
+            r = await c.sync_a_records(
+                zone_id=zid,
+                zone_name=zname,
+                record_label=body.union_name(),
+                ips=ips,
+                proxied=body.proxied,
+                ttl=body.ttl,
+                dry_run=dry,
+            )
+        except CloudflareApiError as e:
+            _raise_cf(e)
+        return {"mode": "union", "dry_run": dry, "zone": zname, "errors": errors, "result": r}
+
+    by_name: dict[str, list[str]] = {}
+    name_to_servers: dict[str, list[str]] = {}
+    for row in body.items:
+        s = await get_server(row.server_id)
+        if s is None:
+            errors.append({"server_id": row.server_id, "error": "сервер не найден"})
+            continue
+        ip = ipv4_from_host(s.host)
+        if not ip:
+            errors.append(
+                {
+                    "server_id": row.server_id,
+                    "panel_name": s.name,
+                    "host": s.host,
+                    "error": "хост не IPv4 — укажите IP в карточке сервера",
+                }
+            )
+            continue
+        nm = row.name
+        by_name.setdefault(nm, []).append(ip)
+        name_to_servers.setdefault(nm, []).append(row.server_id)
+
+    results: list[dict[str, Any]] = []
+    for nm, raw_ips in by_name.items():
+        sids = name_to_servers.get(nm, [])
+        try:
+            ips = normalize_ipv4_unique_list(raw_ips)
+        except ValueError as e:
+            results.append({"name": nm, "ok": False, "server_ids": sids, "error": str(e)})
+            continue
+        if body.proxied and len(ips) > 1:
+            results.append(
+                {
+                    "name": nm,
+                    "ok": False,
+                    "server_ids": sids,
+                    "error": "Несколько IPv4 на одно имя несовместимо с proxied=true",
+                }
+            )
+            continue
+        try:
+            r = await c.sync_a_records(
+                zone_id=zid,
+                zone_name=zname,
+                record_label=nm,
+                ips=ips,
+                proxied=body.proxied,
+                ttl=body.ttl,
+                dry_run=dry,
+            )
+            results.append({"name": nm, "ok": True, "server_ids": sids, "result": r})
+        except CloudflareApiError as e:
+            results.append({"name": nm, "ok": False, "server_ids": sids, "error": str(e)})
+
+    return {"mode": "per_subdomain", "dry_run": dry, "zone": zname, "errors": errors, "results": results}
 
 
 @cloudflare_router.post("/sync-config")

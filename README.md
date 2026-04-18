@@ -30,11 +30,12 @@ uv run python -m uvicorn app.main:app --host "${PANEL_BIND_HOST:-0.0.0.0}" --por
 
 ### Cloudflare DNS
 
-В `.env`: `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ZONE_ID` или `CLOUDFLARE_ZONE_NAME`, опционально `CLOUDFLARE_DNS_TARGETS_FILE` / `CLOUDFLARE_DNS_TARGETS_JSON` (формат как в `config/cloudflare_dns_targets.example.json`).
+В `.env`: `CLOUDFLARE_API_TOKEN` и зона — `CLOUDFLARE_ZONE_ID` или `CLOUDFLARE_ZONE_NAME`.
 
-- Панель: раздел **Провайдеры** — блок Cloudflare (просмотр, dry-run, применить).
+- **Панель (основной сценарий):** раздел **Провайдеры** → Cloudflare → таблица серверов из `data/servers.json`: отметьте строки, при необходимости поправьте поддомен (по умолчанию подсказка из имени сервера), **«Выбранные → DNS»**. Для каждого IPv4 в поле «хост» создаётся/обновляется набор A-записей под указанным поддоменом. Несколько серверов с **одинаковым** поддоменом дают **несколько A** на одно имя. Отдельно: **«Все IP → одно имя»** — все отмеченные серверы в одну группу A под одним поддоменом.
+- **`.env` JSON/файл** (`CLOUDFLARE_DNS_TARGETS_*`) — только если нужна синхронизация без UI (cron, скрипты).
 - CLI: `uv run python scripts/cloudflare_sync_dns.py --dry-run` или `--name mt --ips 1.2.3.4,5.6.7.8`.
-- API: `/api/cloud/cloudflare/status`, `POST /api/cloud/cloudflare/sync-a`, `POST /api/cloud/cloudflare/sync-config`.
+- API: `GET /api/cloud/cloudflare/panel-servers-preview`, `POST /api/cloud/cloudflare/sync-panel-servers`, плюс ручной `sync-a` и `sync-config`.
 
 ## Docker
 

@@ -481,11 +481,55 @@
                   <button type="button" class="btn btn-ghost btn-sm" id="btn-cf-dns-dry">Dry-run</button>
                   <button type="button" class="btn btn-primary btn-sm" id="btn-cf-dns-sync">Применить</button>
                 </div>
+
+                <div class="cf-dns-subhead">Из серверов панели</div>
+                <p class="hint cf-dns-panel-hint">
+                  Подставляются сохранённые серверы (<code>data/servers.json</code>). В Cloudflare уходит только
+                  <strong>IPv4</strong> из поля «хост»; если там доменное имя — сначала смените хост на IP или
+                  используйте ручной ввод ниже.
+                </p>
+                <div class="cf-dns-actions">
+                  <button type="button" class="btn btn-ghost btn-sm" id="btn-cf-dns-load-panel">Обновить список</button>
+                  <button type="button" class="btn btn-ghost btn-sm" id="btn-cf-dns-panel-dry">Выбранные → DNS (dry-run)</button>
+                  <button type="button" class="btn btn-primary btn-sm" id="btn-cf-dns-panel-sync">Выбранные → DNS</button>
+                </div>
+                <div class="cf-dns-panel-table-wrap">
+                  <table class="cf-dns-panel-table" id="cf-dns-panel-table" hidden>
+                    <thead>
+                      <tr>
+                        <th class="cf-dns-col-check"></th>
+                        <th>Сервер</th>
+                        <th>Хост</th>
+                        <th>Поддомен в зоне</th>
+                      </tr>
+                    </thead>
+                    <tbody id="cf-dns-panel-tbody"></tbody>
+                  </table>
+                  <p class="hint cf-dns-panel-empty" id="cf-dns-panel-empty">Нажмите «Обновить список».</p>
+                </div>
+                <div class="cf-dns-union-row">
+                  <div class="field field-tight cf-dns-union-field">
+                    <label for="cf-dns-union-name">Один поддомен на всех отмеченных (несколько A)</label>
+                    <input
+                      class="input input-mono"
+                      id="cf-dns-union-name"
+                      type="text"
+                      placeholder="например mt-all"
+                      autocomplete="off"
+                    />
+                  </div>
+                  <div class="cf-dns-actions cf-dns-union-actions">
+                    <button type="button" class="btn btn-ghost btn-sm" id="btn-cf-dns-union-dry">Все IP → одно имя (dry-run)</button>
+                    <button type="button" class="btn btn-primary btn-sm" id="btn-cf-dns-union-sync">Все IP → одно имя</button>
+                  </div>
+                </div>
+
+                <div class="cf-dns-subhead cf-dns-subhead-muted">Ручной ввод и .env (по желанию)</div>
                 <div class="cf-dns-actions cf-dns-actions-row2">
                   <button type="button" class="btn btn-ghost btn-sm" id="btn-cf-dns-sync-config-dry">
                     Синхр. из .env (dry-run)
                   </button>
-                  <button type="button" class="btn btn-primary btn-sm" id="btn-cf-dns-sync-config">Синхр. из .env</button>
+                  <button type="button" class="btn btn-ghost btn-sm" id="btn-cf-dns-sync-config">Синхр. из .env</button>
                 </div>
                 <div class="cf-dns-form">
                   <div class="field field-tight">
@@ -519,10 +563,9 @@
                 </div>
                 <pre class="log cf-dns-out log-empty" id="cf-dns-out">Нажмите «Статус» или введите имя и IP.</pre>
                 <p class="hint cf-dns-docs">
-                  Переменные: <code>CLOUDFLARE_API_TOKEN</code>, <code>CLOUDFLARE_ZONE_ID</code> или
-                  <code>CLOUDFLARE_ZONE_NAME</code>, опционально <code>CLOUDFLARE_DNS_TARGETS_FILE</code> /
-                  <code>CLOUDFLARE_DNS_TARGETS_JSON</code>. Пример файла:
-                  <code>config/cloudflare_dns_targets.example.json</code>. CLI:
+                  <code>CLOUDFLARE_API_TOKEN</code> и зона (<code>CLOUDFLARE_ZONE_ID</code> или
+                  <code>CLOUDFLARE_ZONE_NAME</code>). Переменные <code>CLOUDFLARE_DNS_TARGETS_*</code> — только для
+                  автоматизации без панели (cron, CI). CLI:
                   <code>uv run python scripts/cloudflare_sync_dns.py --dry-run</code>.
                   <a href="https://developers.cloudflare.com/api/" target="_blank" rel="noopener">API Cloudflare</a>.
                 </p>

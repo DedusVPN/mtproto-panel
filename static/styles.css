@@ -203,9 +203,6 @@ body {
 }
 
 .stats-dash {
-  display: flex;
-  flex-direction: column;
-  gap: 0.85rem;
   margin-bottom: 0.75rem;
 }
 
@@ -213,17 +210,28 @@ body {
   margin: 0;
 }
 
-.stats-section .stats-cards {
+.stats-hero {
+  padding: 0.85rem 1rem;
+}
+
+.stats-cards-hero {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(118px, 1fr));
+  gap: 0.5rem;
   margin-bottom: 0;
 }
 
-.stats-cards-user {
-  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+.stats-hero .stats-card {
+  padding: 0.45rem 0.55rem;
 }
 
-.stats-card-wide .stats-card-k {
-  font-size: 0.62rem;
-  line-height: 1.3;
+.stats-hero .stats-card-k {
+  font-size: 0.6rem;
+  letter-spacing: 0.03em;
+}
+
+.stats-hero .stats-card-v {
+  font-size: 0.92rem;
 }
 
 .stats-charts.stats-charts-grid {

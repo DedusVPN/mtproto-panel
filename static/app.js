@@ -858,133 +858,70 @@
     return Number.isInteger(n) ? n.toLocaleString("ru-RU") : n.toLocaleString("ru-RU", { maximumFractionDigits: 3 });
   }
 
-  const DASH_SECTIONS = [
+  /** Краткие KPI над графиками (остальное — только на графиках). */
+  const HERO_KPIS = [
+    { label: "Версия", fromCards: "version" },
+    { label: "Uptime, с", key: "telemt_uptime_seconds" },
     {
-      title: "Сборка и телеметрия",
-      items: [
-        { label: "Версия", fromCards: "version" },
-        { label: "Uptime, с", key: "telemt_uptime_seconds" },
-        { label: "Telemetry core", key: "telemt_telemetry_core_enabled" },
-        { label: "Telemetry user", key: "telemt_telemetry_user_enabled" },
-        { label: "ME telemetry · normal", key: 'telemt_telemetry_me_level{level="normal"}' },
-        { label: "ME telemetry · debug", key: 'telemt_telemetry_me_level{level="debug"}' },
-        { label: "ME telemetry · silent", key: 'telemt_telemetry_me_level{level="silent"}' },
-        { label: "User series suppressed", key: "telemt_telemetry_user_series_suppressed" },
-      ],
+      label: "Пользователей Telemt",
+      compute(cards, m) {
+        if (cards && cards.per_user_connections_current && typeof cards.per_user_connections_current === "object") {
+          return Object.keys(cards.per_user_connections_current).length;
+        }
+        const keys = Object.keys(m || {}).filter((k) => k.startsWith("telemt_user_connections_current{"));
+        return keys.length;
+      },
     },
     {
-      title: "Соединения и рукопожатие",
-      items: [
-        { label: "Принято всего", key: "telemt_connections_total" },
-        { label: "Плохие / отклонённые", key: "telemt_connections_bad_total" },
-        { label: "Таймауты рукопожатия", key: "telemt_handshake_timeouts_total" },
-        { label: "Permit timeout (drop)", key: "telemt_accept_permit_timeout_total" },
-      ],
+      label: "Сессий сейчас",
+      compute(cards, m) {
+        if (cards && cards.per_user_connections_current && typeof cards.per_user_connections_current === "object") {
+          let s = 0;
+          for (const k of Object.keys(cards.per_user_connections_current)) {
+            s += Number(cards.per_user_connections_current[k]) || 0;
+          }
+          return s;
+        }
+        let s = 0;
+        for (const k of Object.keys(m || {})) {
+          if (k.startsWith("telemt_user_connections_current{")) s += Number(m[k]) || 0;
+        }
+        return s;
+      },
+    },
+    { label: "Соединений принято", fromCards: "connections_total", fallbackKey: "telemt_connections_total" },
+    { label: "Плохие соединения", fromCards: "connections_bad_total", fallbackKey: "telemt_connections_bad_total" },
+    { label: "Таймауты рукопожатия", key: "telemt_handshake_timeouts_total" },
+    {
+      label: "ME writers (act / warm)",
+      compute(cards, m) {
+        const a = cards && cards.writers_active != null ? cards.writers_active : m.telemt_me_writers_active_current;
+        const w = cards && cards.writers_warm != null ? cards.writers_warm : m.telemt_me_writers_warm_current;
+        if (a == null && w == null) return null;
+        return String(fmtNum(a)) + " / " + String(fmtNum(w));
+      },
     },
     {
-      title: "Авторизация",
-      items: [
-        { label: "Тяжёлые проверки", key: "telemt_auth_expensive_checks_total" },
-        { label: "Исчерпан бюджет auth", key: "telemt_auth_budget_exhausted_total" },
-      ],
+      label: "Upstream OK / fail",
+      compute(cards, m) {
+        const ok = cards && cards.upstream_connect_success != null ? cards.upstream_connect_success : m.telemt_upstream_connect_success_total;
+        const fl = cards && cards.upstream_connect_fail != null ? cards.upstream_connect_fail : m.telemt_upstream_connect_fail_total;
+        if (ok == null && fl == null) return null;
+        return String(fmtNum(ok)) + " / " + String(fmtNum(fl));
+      },
     },
-    {
-      title: "Upstream",
-      items: [
-        { label: "Попытки connect", key: "telemt_upstream_connect_attempt_total" },
-        { label: "Успешные циклы", key: "telemt_upstream_connect_success_total" },
-        { label: "Ошибки циклов", key: "telemt_upstream_connect_fail_total" },
-        { label: "Failfast hard errors", key: "telemt_upstream_connect_failfast_hard_error_total" },
-      ],
-    },
-    {
-      title: "Пул буферов",
-      items: [
-        { label: "Буферы · pooled", key: 'telemt_buffer_pool_buffers_total{kind="pooled"}' },
-        { label: "Буферы · allocated", key: 'telemt_buffer_pool_buffers_total{kind="allocated"}' },
-        { label: "Буферы · in_use", key: 'telemt_buffer_pool_buffers_total{kind="in_use"}' },
-      ],
-    },
-    {
-      title: "ME writers и пол",
-      items: [
-        { label: "Writers active", key: "telemt_me_writers_active_current" },
-        { label: "Writers warm", key: "telemt_me_writers_warm_current" },
-        { label: "Adaptive target writers", key: "telemt_me_adaptive_floor_target_writers_total" },
-        { label: "Floor cap block", key: "telemt_me_floor_cap_block_total" },
-        { label: "Floor mode · adaptive", key: 'telemt_me_floor_mode{mode="adaptive"}' },
-        { label: "Floor mode · static", key: 'telemt_me_floor_mode{mode="static"}' },
-      ],
-    },
-    {
-      title: "ME keepalive / RPC",
-      items: [
-        { label: "Keepalive sent", key: "telemt_me_keepalive_sent_total" },
-        { label: "Keepalive failed", key: "telemt_me_keepalive_failed_total" },
-        { label: "Keepalive pong", key: "telemt_me_keepalive_pong_total" },
-        { label: "Keepalive timeout", key: "telemt_me_keepalive_timeout_total" },
-      ],
-    },
-    {
-      title: "ME reconnect",
-      items: [
-        { label: "Reconnect attempts", key: "telemt_me_reconnect_attempts_total" },
-        { label: "Reconnect success", key: "telemt_me_reconnect_success_total" },
-        { label: "Handshake reject", key: "telemt_me_handshake_reject_total" },
-      ],
-    },
-    {
-      title: "Реле (middle)",
-      items: [
-        { label: "Idle soft mark", key: "telemt_relay_idle_soft_mark_total" },
-        { label: "Idle hard close", key: "telemt_relay_idle_hard_close_total" },
-        { label: "Pressure evict", key: "telemt_relay_pressure_evict_total" },
-        { label: "Protocol desync close", key: "telemt_relay_protocol_desync_close_total" },
-      ],
-    },
-    {
-      title: "Крипто / desync",
-      items: [
-        { label: "Desync total", key: "telemt_desync_total" },
-        { label: "Secure padding invalid", key: "telemt_secure_padding_invalid_total" },
-        { label: "Desync full logged", key: "telemt_desync_full_logged_total" },
-        { label: "Desync suppressed", key: "telemt_desync_suppressed_total" },
-      ],
-    },
-    {
-      title: "DC → клиент (агрегаты)",
-      items: [
-        { label: "Батчи flush", key: "telemt_me_d2c_batches_total" },
-        { label: "Кадры в батчах", key: "telemt_me_d2c_batch_frames_total" },
-        { label: "Payload bytes", key: "telemt_me_d2c_payload_bytes_total" },
-        { label: "Data frames", key: "telemt_me_d2c_data_frames_total" },
-        { label: "Ack frames", key: "telemt_me_d2c_ack_frames_total" },
-      ],
-    },
-    {
-      title: "Conntrack",
-      items: [
-        { label: "Queue depth", key: "telemt_conntrack_event_queue_depth" },
-        { label: "Delete · attempt", key: 'telemt_conntrack_delete_total{result="attempt"}' },
-        { label: "Delete · success", key: 'telemt_conntrack_delete_total{result="success"}' },
-        { label: "Delete · error", key: 'telemt_conntrack_delete_total{result="error"}' },
-      ],
-    },
-    {
-      title: "IP tracker",
-      items: [
-        { label: "Users · active", key: 'telemt_ip_tracker_users{scope="active"}' },
-        { label: "Users · recent", key: 'telemt_ip_tracker_users{scope="recent"}' },
-        { label: "Entries · active", key: 'telemt_ip_tracker_entries{scope="active"}' },
-        { label: "Entries · recent", key: 'telemt_ip_tracker_entries{scope="recent"}' },
-        { label: "Cleanup queue", key: "telemt_ip_tracker_cleanup_queue_len" },
-      ],
-    },
+    { label: "Desync", fromCards: "desync_total", fallbackKey: "telemt_desync_total" },
+    { label: "Уник. IP (трекер)", key: 'telemt_ip_tracker_entries{scope="active"}' },
   ];
 
   function dashCardValue(cards, m, it) {
+    if (typeof it.compute === "function") {
+      const v = it.compute(cards || {}, m || {});
+      return v === "" ? null : v;
+    }
     if (it.fromCards && cards && cards[it.fromCards] != null) return cards[it.fromCards];
     if (it.key && m && m[it.key] != null) return m[it.key];
+    if (it.fallbackKey && m && m[it.fallbackKey] != null) return m[it.fallbackKey];
     return null;
   }
 
@@ -1001,50 +938,18 @@
       host.innerHTML = '<p class="hint stats-dash-empty">Нет данных метрик. Снимите снимок или дождитесь авто-снимка.</p>';
       return;
     }
-    const parts = [];
-    DASH_SECTIONS.forEach((sec) => {
-      const cardsHtml = sec.items
-        .map((it) => {
-          const v = dashCardValue(cards, m, it);
-          return (
-            '<div class="stats-card"><div class="stats-card-k">' +
-            escapeAttr(it.label) +
-            '</div><div class="stats-card-v">' +
-            fmtDashCell(v) +
-            "</div></div>"
-          );
-        })
-        .join("");
-      parts.push(
-        '<section class="stats-section panel"><div class="panel-head"><h2>' +
-          escapeAttr(sec.title) +
-          '</h2></div><div class="stats-cards">' +
-          cardsHtml +
-          "</div></section>"
+    const inner = HERO_KPIS.map((it) => {
+      const v = dashCardValue(cards, m, it);
+      return (
+        '<div class="stats-card"><div class="stats-card-k">' +
+        escapeAttr(it.label) +
+        '</div><div class="stats-card-v">' +
+        fmtDashCell(v) +
+        "</div></div>"
       );
-    });
-    const userKeys = Object.keys(m)
-      .filter((k) => k.startsWith("telemt_user_"))
-      .sort();
-    if (userKeys.length) {
-      const rows = userKeys
-        .map((k) => {
-          return (
-            '<div class="stats-card stats-card-wide"><div class="stats-card-k mono">' +
-            escapeAttr(k) +
-            '</div><div class="stats-card-v">' +
-            fmtDashCell(m[k]) +
-            "</div></div>"
-          );
-        })
-        .join("");
-      parts.push(
-        '<section class="stats-section panel"><div class="panel-head"><h2>Пользователи (per-user)</h2></div><div class="stats-cards stats-cards-user">' +
-          rows +
-          "</div></section>"
-      );
-    }
-    host.innerHTML = parts.join("");
+    }).join("");
+    host.innerHTML =
+      '<div class="stats-hero panel"><div class="stats-cards stats-cards-hero">' + inner + "</div></div>";
   }
 
   function destroyStatCharts() {

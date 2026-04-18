@@ -28,7 +28,8 @@ COPY deploy/docker-entrypoint.sh /docker-entrypoint.sh
 RUN sed -i 's/\r$//' /docker-entrypoint.sh \
     && chmod 0755 /docker-entrypoint.sh
 
-ENV PATH="/app/.venv/bin:$PATH"
+ENV HOME=/home/panel \
+    PATH="/app/.venv/bin:$PATH"
 
 EXPOSE 8765
 

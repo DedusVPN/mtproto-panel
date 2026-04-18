@@ -14,6 +14,8 @@ def build_asyncssh_connect_kwargs(ssh: SSHAuth) -> dict[str, Any]:
         "port": ssh.port,
         "username": ssh.username,
         "known_hosts": None,
+        # Иначе AsyncSSH подставляет ~/.ssh/crt (X.509); при HOME=/root после drop uid — PermissionError.
+        "x509_trusted_cert_paths": [],
     }
     key_material = (ssh.private_key or "").strip()
     password = (ssh.password or "").strip()

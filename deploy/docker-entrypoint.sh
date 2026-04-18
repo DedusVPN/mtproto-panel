@@ -10,6 +10,8 @@ if [ -f /run/secrets/panel_admin_password_hash ]; then
   install -m 0444 /run/secrets/panel_admin_password_hash /tmp/panel_admin_password_hash
   export PANEL_ADMIN_PASSWORD_HASH_FILE=/tmp/panel_admin_password_hash
 fi
+# Иначе у дочернего процесса остаётся HOME от root → expanduser("~") = /root/.ssh/…
+export HOME=/home/panel
 exec setpriv --reuid=1000 --regid=1000 --init-groups -- \
   /app/.venv/bin/python -m uvicorn app.main:app \
   --host "${UVICORN_HOST:-0.0.0.0}" --port "${UVICORN_PORT:-8765}"

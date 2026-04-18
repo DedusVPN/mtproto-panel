@@ -1,0 +1,16 @@
+{
+  "records": [
+    {
+      "name": "mtproxy",
+      "ips": ["203.0.113.10", "203.0.113.11"],
+      "proxied": false,
+      "ttl": 1
+    },
+    {
+      "name": "@",
+      "ips": ["198.51.100.5"],
+      "proxied": false,
+      "ttl": 1
+    }
+  ]
+}

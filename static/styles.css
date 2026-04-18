@@ -1122,6 +1122,56 @@ details.sidebar-cloud[open] > .cloud-summary::before {
   color: var(--accent-hover);
 }
 
+.providers-cloudflare {
+  margin-top: 0.5rem;
+}
+
+.cf-dns-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  padding: 0.15rem 0.15rem 0.35rem;
+}
+
+.cf-dns-line {
+  padding-top: 0.25rem;
+}
+
+.cf-dns-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.cf-dns-actions-row2 {
+  margin-top: -0.15rem;
+}
+
+.cf-dns-form {
+  border-top: 1px solid var(--border);
+  padding-top: 0.5rem;
+  margin-top: 0.15rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.cf-dns-check {
+  font-size: 0.72rem;
+  margin: 0;
+}
+
+.cf-dns-out {
+  max-height: 220px;
+  overflow: auto;
+  font-size: 0.68rem;
+  margin: 0;
+}
+
+.cf-dns-docs a {
+  color: var(--accent-hover);
+}
+
 .login-gate {
   position: fixed;
   inset: 0;

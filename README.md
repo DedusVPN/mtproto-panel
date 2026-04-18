@@ -1,6 +1,6 @@
 # free-tg-mtproxy
 
-Панель развёртывания **Telemt** по SSH и блок «Облако · VDSina».
+Панель развёртывания **Telemt** по SSH и блоки «Облако · VDSina» и **Cloudflare DNS** (синхронизация нескольких A на один поддомен).
 
 Сценарий по умолчанию: **доступ по `http://IP:порт` без домена и SSL**. В `.env` должны быть **`PANEL_COOKIE_SECURE=false`** и **`PANEL_TRUST_FORWARDED_PROTO=false`**, иначе вход по cookie не заработает в браузере.
 
@@ -26,6 +26,15 @@ uv run python -m uvicorn app.main:app --host "${PANEL_BIND_HOST:-0.0.0.0}" --por
 | `data/` | локальные данные (`servers.json`, не в git) |
 | `deploy/` | `Dockerfile`, `docker-entrypoint.sh`, `init_docker_secrets.sh` |
 | `scripts/` | утилиты и проверка auth |
+| `config/cloudflare_dns_targets.example.json` | пример целей DNS для Cloudflare |
+
+### Cloudflare DNS
+
+В `.env`: `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ZONE_ID` или `CLOUDFLARE_ZONE_NAME`, опционально `CLOUDFLARE_DNS_TARGETS_FILE` / `CLOUDFLARE_DNS_TARGETS_JSON` (формат как в `config/cloudflare_dns_targets.example.json`).
+
+- Панель: раздел **Провайдеры** — блок Cloudflare (просмотр, dry-run, применить).
+- CLI: `uv run python scripts/cloudflare_sync_dns.py --dry-run` или `--name mt --ips 1.2.3.4,5.6.7.8`.
+- API: `/api/cloud/cloudflare/status`, `POST /api/cloud/cloudflare/sync-a`, `POST /api/cloud/cloudflare/sync-config`.
 
 ## Docker
 

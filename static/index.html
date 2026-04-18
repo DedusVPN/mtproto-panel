@@ -468,6 +468,66 @@
                 </p>
               </div>
             </section>
+
+            <section class="panel providers-cloudflare">
+              <div class="panel-head">
+                <h2>Cloudflare DNS</h2>
+              </div>
+              <div class="cf-dns-wrap" id="cf-dns-panel">
+                <p class="hint cf-dns-line" id="cf-dns-line"></p>
+                <div class="cf-dns-actions">
+                  <button type="button" class="btn btn-ghost btn-sm" id="btn-cf-dns-status">Статус</button>
+                  <button type="button" class="btn btn-ghost btn-sm" id="btn-cf-dns-list">Список A</button>
+                  <button type="button" class="btn btn-ghost btn-sm" id="btn-cf-dns-dry">Dry-run</button>
+                  <button type="button" class="btn btn-primary btn-sm" id="btn-cf-dns-sync">Применить</button>
+                </div>
+                <div class="cf-dns-actions cf-dns-actions-row2">
+                  <button type="button" class="btn btn-ghost btn-sm" id="btn-cf-dns-sync-config-dry">
+                    Синхр. из .env (dry-run)
+                  </button>
+                  <button type="button" class="btn btn-primary btn-sm" id="btn-cf-dns-sync-config">Синхр. из .env</button>
+                </div>
+                <div class="cf-dns-form">
+                  <div class="field field-tight">
+                    <label for="cf-dns-name">Поддомен (относительно зоны)</label>
+                    <input
+                      class="input input-mono"
+                      id="cf-dns-name"
+                      type="text"
+                      placeholder="mtproxy или @"
+                      autocomplete="off"
+                    />
+                  </div>
+                  <div class="field field-tight">
+                    <label for="cf-dns-ips">IPv4 через запятую</label>
+                    <input
+                      class="input input-mono"
+                      id="cf-dns-ips"
+                      type="text"
+                      placeholder="203.0.113.1, 203.0.113.2"
+                      autocomplete="off"
+                    />
+                  </div>
+                  <div class="field field-tight">
+                    <label for="cf-dns-ttl">TTL (1 = auto)</label>
+                    <input class="input" id="cf-dns-ttl" type="number" min="1" value="1" step="1" />
+                  </div>
+                  <label class="check cf-dns-check">
+                    <input type="checkbox" id="cf-dns-proxied" />
+                    <span>Proxied (облако CF; только один IP на имя)</span>
+                  </label>
+                </div>
+                <pre class="log cf-dns-out log-empty" id="cf-dns-out">Нажмите «Статус» или введите имя и IP.</pre>
+                <p class="hint cf-dns-docs">
+                  Переменные: <code>CLOUDFLARE_API_TOKEN</code>, <code>CLOUDFLARE_ZONE_ID</code> или
+                  <code>CLOUDFLARE_ZONE_NAME</code>, опционально <code>CLOUDFLARE_DNS_TARGETS_FILE</code> /
+                  <code>CLOUDFLARE_DNS_TARGETS_JSON</code>. Пример файла:
+                  <code>config/cloudflare_dns_targets.example.json</code>. CLI:
+                  <code>uv run python scripts/cloudflare_sync_dns.py --dry-run</code>.
+                  <a href="https://developers.cloudflare.com/api/" target="_blank" rel="noopener">API Cloudflare</a>.
+                </p>
+              </div>
+            </section>
           </div>
         </div>
       </div>

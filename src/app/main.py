@@ -23,6 +23,7 @@ from app.schemas import DeployRequest, JournalStreamRequest, MetricsSnapshotRequ
 from app.server_schemas import StoredServerCreate, StoredServerUpdate
 from app.server_store import create_server, delete_server, get_server, list_servers, update_server
 from app.cloud_router import cloud_meta_router, router as cloud_vdsina_router
+from app.cloudflare_router import cloudflare_router
 from app.http_shared import close_shared_http_client, shared_http_client
 from app.panel_auth_settings import get_panel_auth_settings
 from app.ws_auth import require_panel_ws_or_close
@@ -61,6 +62,7 @@ _configure_middleware(app)
 app.include_router(auth_router)
 app.include_router(cloud_meta_router)
 app.include_router(cloud_vdsina_router)
+app.include_router(cloudflare_router)
 
 
 @app.get("/api/presets")

@@ -1655,6 +1655,121 @@
     }
   });
 
+  const cfDnsPanel = $("cf-dns-panel");
+  if (cfDnsPanel) {
+    const cfDnsOut = $("cf-dns-out");
+    function cfDnsShowJson(obj) {
+      if (!cfDnsOut) return;
+      cfDnsOut.classList.remove("log-empty");
+      cfDnsOut.textContent = JSON.stringify(obj, null, 2);
+    }
+    function cfDnsShowErr(e) {
+      if (!cfDnsOut) return;
+      cfDnsOut.classList.remove("log-empty");
+      cfDnsOut.textContent = String(e.message || e);
+    }
+
+    function parseCfDnsIps() {
+      const raw = String($("cf-dns-ips").value || "");
+      return raw
+        .split(/[\s,;]+/)
+        .map((s) => s.trim())
+        .filter(Boolean);
+    }
+
+    async function refreshCfDnsStatus() {
+      const line = $("cf-dns-line");
+      if (!line) return;
+      try {
+        const st = await apiJson("/api/cloud/cloudflare/status");
+        const z = st.zone ? st.zone.name + " · " + st.zone.id : "зона не загружена";
+        const tok = st.configured ? st.token_status || "ok" : "нет токена";
+        line.textContent =
+          (st.configured ? "Токен: " + tok : "Задайте CLOUDFLARE_API_TOKEN") +
+          (st.zone ? " · " + z : st.zone_error ? " · зона: " + st.zone_error : "") +
+          (typeof st.targets_count === "number" ? " · целей в конфиге: " + st.targets_count : "");
+        cfDnsShowJson(st);
+      } catch (e) {
+        line.textContent = "Ошибка: " + (e.message || e);
+        cfDnsShowErr(e);
+      }
+    }
+
+    $("btn-cf-dns-status").addEventListener("click", () => refreshCfDnsStatus().catch((e) => console.error(e)));
+
+    $("btn-cf-dns-list").addEventListener("click", async () => {
+      const name = ($("cf-dns-name").value || "").trim();
+      if (!name) {
+        alert("Укажите поддомен");
+        return;
+      }
+      try {
+        const q = encodeURIComponent(name);
+        const data = await apiJson("/api/cloud/cloudflare/dns-records?name=" + q);
+        cfDnsShowJson(data);
+      } catch (e) {
+        cfDnsShowErr(e);
+      }
+    });
+
+    $("btn-cf-dns-dry").addEventListener("click", async () => {
+      const name = ($("cf-dns-name").value || "").trim();
+      const ips = parseCfDnsIps();
+      if (!name || !ips.length) {
+        alert("Укажите поддомен и хотя бы один IPv4");
+        return;
+      }
+      const ttl = parseInt(String($("cf-dns-ttl").value || "1"), 10);
+      try {
+        const data = await apiJson("/api/cloud/cloudflare/sync-a/dry-run", {
+          method: "POST",
+          body: { name, ips, proxied: $("cf-dns-proxied").checked, ttl: Number.isFinite(ttl) && ttl >= 1 ? ttl : 1 },
+        });
+        cfDnsShowJson(data);
+      } catch (e) {
+        cfDnsShowErr(e);
+      }
+    });
+
+    $("btn-cf-dns-sync").addEventListener("click", async () => {
+      const name = ($("cf-dns-name").value || "").trim();
+      const ips = parseCfDnsIps();
+      if (!name || !ips.length) {
+        alert("Укажите поддомен и хотя бы один IPv4");
+        return;
+      }
+      const ttl = parseInt(String($("cf-dns-ttl").value || "1"), 10);
+      try {
+        const data = await apiJson("/api/cloud/cloudflare/sync-a", {
+          method: "POST",
+          body: { name, ips, proxied: $("cf-dns-proxied").checked, ttl: Number.isFinite(ttl) && ttl >= 1 ? ttl : 1 },
+        });
+        cfDnsShowJson(data);
+      } catch (e) {
+        cfDnsShowErr(e);
+      }
+    });
+
+    $("btn-cf-dns-sync-config-dry").addEventListener("click", async () => {
+      try {
+        const data = await apiJson("/api/cloud/cloudflare/sync-config?dry_run=true", { method: "POST" });
+        cfDnsShowJson(data);
+      } catch (e) {
+        cfDnsShowErr(e);
+      }
+    });
+
+    $("btn-cf-dns-sync-config").addEventListener("click", async () => {
+      if (!confirm("Применить синхронизацию DNS по всем целям из .env (CLOUDFLARE_DNS_TARGETS_*)?")) return;
+      try {
+        const data = await apiJson("/api/cloud/cloudflare/sync-config?dry_run=false", { method: "POST" });
+        cfDnsShowJson(data);
+      } catch (e) {
+        cfDnsShowErr(e);
+      }
+    });
+  }
+
   document.querySelectorAll(".topbar-tab").forEach((btn) => {
     btn.addEventListener("click", () => {
       const v = btn.getAttribute("data-view");

@@ -1240,6 +1240,52 @@ details.sidebar-cloud[open] > .cloud-summary::before {
   font-size: 0.72rem;
 }
 
+.cf-dns-groups {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+  margin-top: 0.35rem;
+}
+
+.cf-dns-group {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 0.5rem 0.55rem;
+  background: var(--surface);
+}
+
+.cf-dns-group-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 0.45rem;
+}
+
+.cf-dns-group-field {
+  flex: 1 1 12rem;
+  min-width: 8rem;
+  margin: 0;
+}
+
+.cf-dns-group-servers {
+  margin-top: 0.45rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.cf-dns-srv-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.35rem;
+  font-size: 0.72rem;
+  margin: 0;
+}
+
+.cf-dns-srv-row input {
+  margin-top: 0.15rem;
+}
+
 .cf-dns-details {
   margin-top: 0.35rem;
   font-size: 0.72rem;

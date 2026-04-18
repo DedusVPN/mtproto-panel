@@ -4,7 +4,7 @@ from typing import Any
 
 from fastapi import APIRouter, HTTPException
 
-from app.cloudflare_panel import build_dns_overview_view, build_panel_dns_preview, ipv4_from_host
+from app.cloudflare_panel import build_dns_overview_view, build_panel_servers_dns_rows, ipv4_from_host
 from app.cloudflare_schemas import CloudflareSyncPanelServersRequest, normalize_ipv4_unique_list
 from app.cloudflare_settings import get_cloudflare_settings
 from app.http_shared import shared_http_client
@@ -37,8 +37,7 @@ def _client() -> CloudflareClient:
 @cloudflare_router.get("/overview")
 async def cloudflare_overview() -> dict[str, Any]:
     """
-    Сводка: зона + проверка токена, все A-записи в зоне с привязкой к серверам панели по IP,
-    серверы с IPv4 в карточке, для которых в зоне нет A на этот IP.
+    Сводка: зона + проверка токена; только A-записи, чей IP есть в панели; серверы с IPv4 без A в зоне.
     """
     s = get_cloudflare_settings()
     out: dict[str, Any] = {
@@ -66,7 +65,7 @@ async def cloudflare_overview() -> dict[str, Any]:
     out["zone"] = {"id": zid, "name": zname}
 
     servers = await list_servers()
-    servers_rows = build_panel_dns_preview(servers)
+    servers_rows = build_panel_servers_dns_rows(servers)
     try:
         all_a = await c.list_all_a_records(zid)
     except CloudflareApiError as e:

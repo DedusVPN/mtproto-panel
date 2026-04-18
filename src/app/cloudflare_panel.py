@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import ipaddress
-import re
 from typing import Any
 
 from app.server_schemas import ServerListItem
@@ -21,31 +20,6 @@ def ipv4_from_host(host: str) -> str | None:
     return str(addr)
 
 
-def dns_label_from_server_name(name: str, server_id: str) -> str:
-    """Подсказка поддомена из названия сервера в панели (одна метка DNS, до 63 символов)."""
-    raw = (name or "").strip().lower()
-    raw = re.sub(r"[^a-z0-9-]+", "-", raw)
-    raw = re.sub(r"-{2,}", "-", raw).strip("-")
-    if not raw:
-        raw = "srv-" + re.sub(r"[^a-z0-9-]", "", server_id.lower())[:12]
-    if len(raw) > 63:
-        raw = raw[:63].rstrip("-")
-    return raw or ("srv-" + server_id[:8])
-
-
-def uniquify_dns_label(base: str, used: set[str]) -> str:
-    b = base[:63].rstrip("-") or "srv"
-    if b not in used:
-        return b
-    for i in range(2, 10_000):
-        suffix = f"-{i}"
-        head = b[: max(1, 63 - len(suffix))].rstrip("-")
-        cand = (head + suffix)[:63]
-        if cand not in used:
-            return cand
-    return (b[:40] + "-x")[:63]
-
-
 def relative_name_from_fqdn(fqdn: str, zone_name: str) -> str:
     """Имя записи относительно зоны (для отображения)."""
     f = (fqdn or "").strip().rstrip(".").lower()
@@ -61,13 +35,10 @@ def relative_name_from_fqdn(fqdn: str, zone_name: str) -> str:
     return f
 
 
-def build_panel_dns_preview(servers: list[ServerListItem]) -> list[dict[str, str | None]]:
-    used: set[str] = set()
+def build_panel_servers_dns_rows(servers: list[ServerListItem]) -> list[dict[str, str | None]]:
+    """Серверы панели для UI: id, имя, хост, IPv4 при наличии (поддомен задаётся на фронте)."""
     out: list[dict[str, str | None]] = []
     for s in servers:
-        base = dns_label_from_server_name(s.name, s.id)
-        sug = uniquify_dns_label(base, used)
-        used.add(sug)
         ip = ipv4_from_host(s.host)
         out.append(
             {
@@ -75,7 +46,6 @@ def build_panel_dns_preview(servers: list[ServerListItem]) -> list[dict[str, str
                 "panel_name": s.name,
                 "host": s.host,
                 "ipv4": ip,
-                "suggested_subdomain": sug,
             }
         )
     return out
@@ -86,7 +56,10 @@ def build_dns_overview_view(
     a_records_raw: list[dict[str, Any]],
     servers_rows: list[dict[str, str | None]],
 ) -> dict[str, Any]:
-    """Сводка: все A в зоне + привязка к серверам панели по IP; серверы с IPv4 без ни одной A."""
+    """
+    Сводка: A-записи зоны, у которых IP есть в панели (остальные не показываем);
+    серверы с IPv4, для которых в зоне нет ни одной A на этот IP.
+    """
     ip_to_panel: dict[str, list[dict[str, str]]] = {}
     for row in servers_rows:
         ip = row.get("ipv4")
@@ -95,6 +68,18 @@ def build_dns_overview_view(
         ip_to_panel.setdefault(ip, []).append(
             {"id": str(row.get("server_id") or ""), "name": str(row.get("panel_name") or "")}
         )
+
+    all_zone_ips: set[str] = set()
+    for rec in a_records_raw:
+        if not isinstance(rec, dict):
+            continue
+        content = rec.get("content")
+        if not isinstance(content, str):
+            continue
+        try:
+            all_zone_ips.add(str(ipaddress.ip_address(content.strip())))
+        except ValueError:
+            all_zone_ips.add(content.strip())
 
     a_records: list[dict[str, Any]] = []
     for rec in a_records_raw:
@@ -109,6 +94,9 @@ def build_dns_overview_view(
             ip_n = str(ipaddress.ip_address(content.strip()))
         except ValueError:
             ip_n = content.strip()
+        matched = list(ip_to_panel.get(ip_n, []))
+        if not matched:
+            continue
         rel = relative_name_from_fqdn(name, zone_name)
         a_records.append(
             {
@@ -118,12 +106,11 @@ def build_dns_overview_view(
                 "content": ip_n,
                 "proxied": rec.get("proxied"),
                 "ttl": rec.get("ttl"),
-                "matched_panel_servers": list(ip_to_panel.get(ip_n, [])),
+                "matched_panel_servers": matched,
             }
         )
 
-    ips_in_cf = {r["content"] for r in a_records}
-    panel_without_a = [r for r in servers_rows if r.get("ipv4") and r["ipv4"] not in ips_in_cf]
+    panel_without_a = [r for r in servers_rows if r.get("ipv4") and r["ipv4"] not in all_zone_ips]
 
     return {
         "a_records": a_records,

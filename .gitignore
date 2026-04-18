@@ -16,6 +16,7 @@ instr.txt
 
 # Локальные профили SSH (секреты)
 data/servers.json
+data/metrics_history.json
 data/*.json.tmp
 
 # Docker / панель

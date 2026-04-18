@@ -140,3 +140,10 @@ class SSHTestRequest(BaseModel):
 
 class JournalStreamRequest(BaseModel):
     ssh: SSHAuth
+
+
+class MetricsSnapshotRequest(BaseModel):
+    """Снять снимок /metrics с выбранного сохранённого сервера по SSH."""
+
+    server_id: str = Field(..., min_length=1)
+    metrics_port: int = Field(9090, ge=1, le=65535)

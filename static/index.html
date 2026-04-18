@@ -13,6 +13,22 @@
     <link rel="stylesheet" href="/static/styles.css" />
   </head>
   <body>
+    <header class="app-topbar">
+      <div class="topbar-brand">
+        <div class="logo-mark logo-mark-sm" aria-hidden="true"></div>
+        <div class="topbar-brand-text">
+          <span class="topbar-title">Telemt</span>
+          <span class="topbar-sub">панель</span>
+        </div>
+      </div>
+      <nav class="topbar-nav" aria-label="Разделы">
+        <button type="button" class="topbar-tab" data-view="stats" id="nav-tab-stats">Статистика MTProto</button>
+        <button type="button" class="topbar-tab is-active" data-view="servers" id="nav-tab-servers">
+          Настройка серверов
+        </button>
+        <button type="button" class="topbar-tab" data-view="providers" id="nav-tab-providers">Провайдеры</button>
+      </nav>
+    </header>
     <div class="shell">
       <aside class="sidebar" aria-label="Серверы">
         <div class="sidebar-head">
@@ -35,79 +51,56 @@
         <p class="sidebar-hint">
           Данные в <code>data/servers.json</code> на машине с панелью. Не коммитьте файл в git.
         </p>
-
-        <details class="sidebar-cloud" id="vdsina-panel">
-          <summary class="sidebar-section-title cloud-summary">Облако · VDSina</summary>
-          <div class="vdsina-wrap">
-            <p class="sidebar-hint vdsina-line" id="vdsina-line"></p>
-            <div class="vdsina-actions">
-              <button type="button" class="btn btn-ghost btn-sm btn-block" id="btn-vdsina-refresh">Обновить</button>
-            </div>
-            <div class="vdsina-list" id="vdsina-list"></div>
-            <div class="vdsina-form">
-              <div class="row-2">
-                <div class="field field-tight">
-                  <label for="vdsina-dc">Датацентр</label>
-                  <select class="input input-select" id="vdsina-dc"></select>
-                </div>
-                <div class="field field-tight">
-                  <label for="vdsina-group">Группа</label>
-                  <select class="input input-select" id="vdsina-group"></select>
-                </div>
-              </div>
-              <div class="field field-tight">
-                <label for="vdsina-plan">Тариф</label>
-                <select class="input input-select" id="vdsina-plan"></select>
-              </div>
-              <div class="field field-tight">
-                <label for="vdsina-template">Шаблон ОС</label>
-                <select class="input input-select" id="vdsina-template"></select>
-              </div>
-              <div class="field field-tight">
-                <label for="vdsina-sshkey">SSH-ключ (необязательно)</label>
-                <select class="input input-select" id="vdsina-sshkey"></select>
-              </div>
-              <p class="sidebar-hint" style="margin: 0 0 0.35rem; font-size: 0.68rem">
-                Тариф-конструктор: если заказ отклоняется, задайте CPU / RAM (ГБ) / диск по лимитам тарифа в API.
-              </p>
-              <div class="row-2">
-                <div class="field field-tight">
-                  <label for="vdsina-cpu">CPU</label>
-                  <input class="input" id="vdsina-cpu" type="number" min="1" step="1" placeholder="—" />
-                </div>
-                <div class="field field-tight">
-                  <label for="vdsina-ram">RAM ГБ</label>
-                  <input class="input" id="vdsina-ram" type="number" min="1" step="1" placeholder="—" />
-                </div>
-              </div>
-              <div class="field field-tight">
-                <label for="vdsina-disk">Диск ГБ</label>
-                <input class="input" id="vdsina-disk" type="number" min="1" step="1" placeholder="—" />
-              </div>
-              <div class="field field-tight">
-                <label for="vdsina-name">Имя VPS</label>
-                <input class="input" id="vdsina-name" type="text" placeholder="telemt-1" autocomplete="off" />
-              </div>
-              <label class="check vdsina-check">
-                <input type="checkbox" id="vdsina-autoprolong" checked />
-                <span>Автопродление</span>
-              </label>
-              <button type="button" class="btn btn-primary btn-sm btn-block" id="btn-vdsina-create">Заказать VPS</button>
-            </div>
-            <p class="sidebar-hint vdsina-docs">
-              Токен: <code>VDSINA_API_TOKEN</code> (без слова Bearer). По умолчанию API:
-              <code>https://userapi.vdsina.com/v1</code>; для кабинета на <code>vdsina.ru</code> задайте
-              <code>VDSINA_API_BASE=https://userapi.vdsina.ru/v1</code>. Также поддерживается
-              <code>VDSINA_BASE_URL</code>. Файл <code>.env</code> в корне проекта; переменные среды перекрывают
-              <code>.env</code>. «В SSH» подставляет IP, root и пароль из API (<code>GET /server.password</code>).
-              При 401 — <code>/api/cloud/vdsina/status</code> (<code>token_diagnostics</code>).
-              <a href="https://www.vdsina.com/tech/api" target="_blank" rel="noopener">Документация API</a>.
-            </p>
-          </div>
-        </details>
       </aside>
 
       <div class="main">
+        <div id="view-stats" class="view-page hidden">
+          <header class="main-header">
+            <div class="main-header-row">
+              <h1 class="page-title">Статистика MTProto</h1>
+              <div class="chip-row stats-toolbar">
+                <label class="field-inline">
+                  <span class="field-inline-label">Порт метрик</span>
+                  <input class="input input-tight" id="stats-metrics-port" type="number" min="1" max="65535" value="9090" />
+                </label>
+                <label class="check stats-auto">
+                  <input type="checkbox" id="stats-auto-snapshot" checked />
+                  <span>Авто-снимок</span>
+                </label>
+                <button type="button" class="btn btn-primary btn-sm" id="btn-stats-snapshot">Снять снимок</button>
+              </div>
+            </div>
+            <p class="stats-subhint">
+              По SSH запрашивается <code>http://127.0.0.1:&lt;порт&gt;/metrics</code> на выбранном сервере. История до 48 ч в
+              <code>data/metrics_history.json</code>.
+            </p>
+          </header>
+          <div class="main-scroll">
+            <div id="stats-cards" class="stats-cards"></div>
+            <p id="stats-msg" class="stats-msg hint"></p>
+            <div class="stats-charts">
+              <div class="panel stats-chart-panel">
+                <div class="panel-head"><h2>Скорость новых соединений / с</h2></div>
+                <p class="hint">Производная от <code>telemt_connections_total</code></p>
+                <canvas id="chart-conn-rate" height="120"></canvas>
+              </div>
+              <div class="panel stats-chart-panel">
+                <div class="panel-head"><h2>Плохие соединения (накопительно)</h2></div>
+                <canvas id="chart-bad" height="120"></canvas>
+              </div>
+              <div class="panel stats-chart-panel">
+                <div class="panel-head"><h2>Активные ME writers</h2></div>
+                <canvas id="chart-writers" height="120"></canvas>
+              </div>
+              <div class="panel stats-chart-panel">
+                <div class="panel-head"><h2>Текущие сессии пользователя (первый user в метриках)</h2></div>
+                <canvas id="chart-user-cur" height="120"></canvas>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div id="view-servers" class="view-page">
         <header class="main-header">
           <div class="main-header-row">
             <h1 class="page-title">Развёртывание Telemt</h1>
@@ -351,6 +344,88 @@
             <code>known_hosts=None</code> — для продакшена задайте проверку ключей хоста.
           </footer>
         </div>
+        </div>
+
+        <div id="view-providers" class="view-page hidden">
+          <header class="main-header">
+            <div class="main-header-row">
+              <h1 class="page-title">Провайдеры</h1>
+            </div>
+          </header>
+          <div class="main-scroll">
+            <section class="panel providers-vdsina">
+              <div class="panel-head">
+                <h2>VDSina</h2>
+              </div>
+              <div class="vdsina-wrap" id="vdsina-panel">
+                <p class="hint vdsina-line" id="vdsina-line"></p>
+                <div class="vdsina-actions">
+                  <button type="button" class="btn btn-ghost btn-sm" id="btn-vdsina-refresh">Обновить</button>
+                </div>
+                <div class="vdsina-list" id="vdsina-list"></div>
+                <div class="vdsina-form">
+                  <div class="row-2">
+                    <div class="field field-tight">
+                      <label for="vdsina-dc">Датацентр</label>
+                      <select class="input input-select" id="vdsina-dc"></select>
+                    </div>
+                    <div class="field field-tight">
+                      <label for="vdsina-group">Группа</label>
+                      <select class="input input-select" id="vdsina-group"></select>
+                    </div>
+                  </div>
+                  <div class="field field-tight">
+                    <label for="vdsina-plan">Тариф</label>
+                    <select class="input input-select" id="vdsina-plan"></select>
+                  </div>
+                  <div class="field field-tight">
+                    <label for="vdsina-template">Шаблон ОС</label>
+                    <select class="input input-select" id="vdsina-template"></select>
+                  </div>
+                  <div class="field field-tight">
+                    <label for="vdsina-sshkey">SSH-ключ (необязательно)</label>
+                    <select class="input input-select" id="vdsina-sshkey"></select>
+                  </div>
+                  <p class="hint" style="margin: 0 0 0.35rem; font-size: 0.75rem">
+                    Тариф-конструктор: если заказ отклоняется, задайте CPU / RAM (ГБ) / диск по лимитам тарифа в API.
+                  </p>
+                  <div class="row-2">
+                    <div class="field field-tight">
+                      <label for="vdsina-cpu">CPU</label>
+                      <input class="input" id="vdsina-cpu" type="number" min="1" step="1" placeholder="—" />
+                    </div>
+                    <div class="field field-tight">
+                      <label for="vdsina-ram">RAM ГБ</label>
+                      <input class="input" id="vdsina-ram" type="number" min="1" step="1" placeholder="—" />
+                    </div>
+                  </div>
+                  <div class="field field-tight">
+                    <label for="vdsina-disk">Диск ГБ</label>
+                    <input class="input" id="vdsina-disk" type="number" min="1" step="1" placeholder="—" />
+                  </div>
+                  <div class="field field-tight">
+                    <label for="vdsina-name">Имя VPS</label>
+                    <input class="input" id="vdsina-name" type="text" placeholder="telemt-1" autocomplete="off" />
+                  </div>
+                  <label class="check vdsina-check">
+                    <input type="checkbox" id="vdsina-autoprolong" checked />
+                    <span>Автопродление</span>
+                  </label>
+                  <button type="button" class="btn btn-primary btn-sm" id="btn-vdsina-create">Заказать VPS</button>
+                </div>
+                <p class="hint vdsina-docs">
+                  Токен: <code>VDSINA_API_TOKEN</code> (без слова Bearer). По умолчанию API:
+                  <code>https://userapi.vdsina.com/v1</code>; для кабинета на <code>vdsina.ru</code> задайте
+                  <code>VDSINA_API_BASE=https://userapi.vdsina.ru/v1</code>. Также поддерживается
+                  <code>VDSINA_BASE_URL</code>. Файл <code>.env</code> в корне проекта; переменные среды перекрывают
+                  <code>.env</code>. «В панель» создаёт новую запись в <code>servers.json</code> с root и паролем из API.
+                  При 401 — <code>/api/cloud/vdsina/status</code> (<code>token_diagnostics</code>).
+                  <a href="https://www.vdsina.com/tech/api" target="_blank" rel="noopener">Документация API</a>.
+                </p>
+              </div>
+            </section>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -443,6 +518,7 @@
       </div>
     </div>
 
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js" crossorigin="anonymous"></script>
     <script src="/static/app.js"></script>
   </body>
 </html>

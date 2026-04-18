@@ -16,7 +16,10 @@ from app.auth_router import router as auth_router
 from app.deploy import run_deploy, ssh_connect_test, stream_telemt_journal
 from app.remote_telemt_config import fetch_telemt_config_from_server
 from app.presets import list_presets
-from app.schemas import DeployRequest, JournalStreamRequest, SSHTestRequest
+from app.metrics_history import append_snapshot, list_history
+from app.metrics_prom import build_stats_cards, parse_prometheus_sample_lines
+from app.metrics_remote import fetch_remote_prometheus_metrics
+from app.schemas import DeployRequest, JournalStreamRequest, MetricsSnapshotRequest, SSHTestRequest
 from app.server_schemas import StoredServerCreate, StoredServerUpdate
 from app.server_store import create_server, delete_server, get_server, list_servers, update_server
 from app.cloud_router import cloud_meta_router, router as cloud_vdsina_router
@@ -106,6 +109,41 @@ async def api_ssh_test(body: SSHTestRequest):
         return {"ok": ok, "message": msg}
     except Exception as e:
         return {"ok": False, "message": str(e)}
+
+
+@app.post("/api/metrics/snapshot")
+async def api_metrics_snapshot(body: MetricsSnapshotRequest):
+    """SSH → http://127.0.0.1:<metrics_port>/metrics на сервере, парсинг и запись в историю (48 ч)."""
+    s = await get_server(body.server_id)
+    if s is None:
+        raise HTTPException(status_code=404, detail="Сервер не найден")
+    ok, msg, raw = await fetch_remote_prometheus_metrics(s.to_ssh_auth(), body.metrics_port)
+    if not ok:
+        return {
+            "ok": False,
+            "message": msg,
+            "preview": (raw or "")[:800] or None,
+        }
+    rec = await append_snapshot(body.server_id, raw)
+    parsed = parse_prometheus_sample_lines(raw)
+    cards = build_stats_cards(parsed)
+    hist = await list_history(body.server_id)
+    return {
+        "ok": True,
+        "message": msg,
+        "t": rec["t"],
+        "cards": cards,
+        "points_total": len(hist),
+        "metrics_series": len(rec["m"]),
+    }
+
+
+@app.get("/api/metrics/history")
+async def api_metrics_history(server_id: str):
+    if not server_id.strip():
+        raise HTTPException(status_code=400, detail="server_id обязателен")
+    pts = await list_history(server_id.strip())
+    return {"points": [{"t": p["t"], "m": p.get("m") or {}} for p in pts]}
 
 
 @app.post("/api/fetch-remote-telemt")

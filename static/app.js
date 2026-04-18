@@ -25,6 +25,10 @@
   }
   const journalLogEl = $("journal-log");
   const LS_SERVER = "telemt_selected_server_id";
+  const LS_VIEW = "telemt_panel_view";
+
+  let statsPollTimer = null;
+  const chartHandles = {};
 
   let journalWs = null;
   let presetsCache = [];
@@ -271,6 +275,10 @@
   async function selectServer(id) {
     selectedServerId = id;
     localStorage.setItem(LS_SERVER, id);
+    const onStats = !$("view-stats").classList.contains("hidden");
+    if (onStats) {
+      void refreshStatsPanel();
+    }
     const r = await authFetch("/api/servers/" + encodeURIComponent(id));
     if (!r.ok) {
       selectedServerId = null;
@@ -798,6 +806,288 @@
     return j;
   }
 
+  function clearStatsTimer() {
+    if (statsPollTimer) {
+      clearInterval(statsPollTimer);
+      statsPollTimer = null;
+    }
+  }
+
+  function vdsinaSuggestedPanelName(s) {
+    const base = String((s && (s.name || s.full_name)) || "").trim();
+    return base || "VDSina #" + (s && s.id);
+  }
+
+  async function createPanelServerFromVdsina(body) {
+    const r = await authFetch("/api/servers", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    if (!r.ok) throw new Error(await r.text());
+    const saved = await r.json();
+    await loadServers();
+    await selectServer(saved.id);
+    appendLog("Сервер «" + body.name + "» добавлен в панель.");
+    return saved;
+  }
+
+  function openDialogVdsinaPartial({ name, host, password }) {
+    $("dlg-server-title").textContent = "Новый сервер (VDSina)";
+    $("dlg-server-id").value = "";
+    $("dlg-fetch-telemt-wrap").classList.remove("hidden");
+    $("dlg-fetch-telemt").checked = true;
+    $("dlg-name").value = name || "";
+    $("dlg-host").value = host || "";
+    $("dlg-port").value = 22;
+    $("dlg-user").value = "root";
+    document.querySelector('input[name="dlg-auth-mode"][value="password"]').checked = true;
+    $("dlg-password").value = password || "";
+    $("dlg-key").value = "";
+    $("dlg-key-pass").value = "";
+    syncDlgAuthUi();
+    dlg().showModal();
+  }
+
+  function fmtNum(v) {
+    if (v == null || Number.isNaN(Number(v))) return "—";
+    const n = Number(v);
+    if (Math.abs(n) >= 1e9) return n.toExponential(3);
+    return Number.isInteger(n) ? n.toLocaleString("ru-RU") : n.toLocaleString("ru-RU", { maximumFractionDigits: 3 });
+  }
+
+  function renderStatsCards(cards) {
+    const host = $("stats-cards");
+    if (!host) return;
+    if (!cards) {
+      host.innerHTML = '<div class="hint">Нет данных снимка. Нажмите «Снять снимок».</div>';
+      return;
+    }
+    const uCur = cards.per_user_connections_current || {};
+    const uNames = Object.keys(uCur);
+    const userLine =
+      uNames.length === 0
+        ? ""
+        : "<div class=\"stats-card\"><div class=\"stats-card-k\">Сессии (user)</div><div class=\"stats-card-v\">" +
+          uNames.map((u) => escapeAttr(u) + ": " + fmtNum(uCur[u])).join("<br/>") +
+          "</div></div>";
+    host.innerHTML =
+      '<div class="stats-card"><div class="stats-card-k">Версия</div><div class="stats-card-v">' +
+      escapeAttr(String(cards.version || "—")) +
+      "</div></div>" +
+      '<div class="stats-card"><div class="stats-card-k">Uptime</div><div class="stats-card-v">' +
+      fmtNum(cards.uptime_seconds) +
+      " с</div></div>" +
+      '<div class="stats-card"><div class="stats-card-k">Соединения всего</div><div class="stats-card-v">' +
+      fmtNum(cards.connections_total) +
+      "</div></div>" +
+      '<div class="stats-card"><div class="stats-card-k">Плохие</div><div class="stats-card-v">' +
+      fmtNum(cards.connections_bad_total) +
+      "</div></div>" +
+      '<div class="stats-card"><div class="stats-card-k">Таймауты рукопожатия</div><div class="stats-card-v">' +
+      fmtNum(cards.handshake_timeouts_total) +
+      "</div></div>" +
+      '<div class="stats-card"><div class="stats-card-k">Upstream OK / fail</div><div class="stats-card-v">' +
+      fmtNum(cards.upstream_connect_success) +
+      " / " +
+      fmtNum(cards.upstream_connect_fail) +
+      "</div></div>" +
+      '<div class="stats-card"><div class="stats-card-k">ME writers</div><div class="stats-card-v">' +
+      fmtNum(cards.writers_active) +
+      " / warm " +
+      fmtNum(cards.writers_warm) +
+      "</div></div>" +
+      '<div class="stats-card"><div class="stats-card-k">Desync</div><div class="stats-card-v">' +
+      fmtNum(cards.desync_total) +
+      "</div></div>" +
+      userLine;
+  }
+
+  function destroyStatCharts() {
+    Object.keys(chartHandles).forEach((k) => {
+      if (chartHandles[k]) {
+        chartHandles[k].destroy();
+        delete chartHandles[k];
+      }
+    });
+  }
+
+  function seriesDerivative(points, key) {
+    const arr = [];
+    for (let i = 1; i < points.length; i++) {
+      const dt = points[i].t - points[i - 1].t;
+      if (dt <= 0) continue;
+      const v0 = points[i - 1].m[key];
+      const v1 = points[i].m[key];
+      if (v0 == null || v1 == null) continue;
+      arr.push({ x: points[i].t * 1000, y: Math.max(0, (v1 - v0) / dt) });
+    }
+    return arr;
+  }
+
+  function seriesGauge(points, key) {
+    return points
+      .filter((p) => p.m && p.m[key] != null)
+      .map((p) => ({ x: p.t * 1000, y: p.m[key] }));
+  }
+
+  function firstMetricKey(points, prefix) {
+    const keys = new Set();
+    points.forEach((p) => {
+      Object.keys(p.m || {}).forEach((k) => {
+        if (k.startsWith(prefix)) keys.add(k);
+      });
+    });
+    const sorted = Array.from(keys).sort();
+    return sorted[0] || null;
+  }
+
+  function makeLineChart(canvasId, label, dataPoints, borderColor, fillColor) {
+    const canvas = $(canvasId);
+    if (!canvas || typeof Chart === "undefined") return;
+    if (chartHandles[canvasId]) {
+      chartHandles[canvasId].destroy();
+      delete chartHandles[canvasId];
+    }
+    chartHandles[canvasId] = new Chart(canvas, {
+      type: "line",
+      data: {
+        datasets: [
+          {
+            label,
+            data: dataPoints,
+            borderColor,
+            backgroundColor: fillColor,
+            fill: true,
+            tension: 0.25,
+            pointRadius: 0,
+          },
+        ],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        scales: {
+          x: {
+            type: "linear",
+            title: { display: true, text: "Время", color: "#8b93a8" },
+            ticks: { color: "#8b93a8", maxTicksLimit: 6 },
+            grid: { color: "rgba(42,49,66,0.5)" },
+          },
+          y: {
+            beginAtZero: true,
+            ticks: { color: "#8b93a8" },
+            grid: { color: "rgba(42,49,66,0.5)" },
+          },
+        },
+        plugins: { legend: { labels: { color: "#e8ebf0" } } },
+      },
+    });
+  }
+
+  async function renderStatsChartsFromHistory() {
+    const sid = selectedServerId;
+    if (!sid || typeof Chart === "undefined") return;
+    const r = await authFetch("/api/metrics/history?server_id=" + encodeURIComponent(sid));
+    if (!r.ok) return;
+    const data = await r.json();
+    const pts = Array.isArray(data.points) ? data.points : [];
+    destroyStatCharts();
+    if (pts.length < 1) return;
+    const connDer = seriesDerivative(pts, "telemt_connections_total");
+    const bad = seriesGauge(pts, "telemt_connections_bad_total");
+    const wr = seriesGauge(pts, "telemt_me_writers_active_current");
+    const uk = firstMetricKey(pts, "telemt_user_connections_current{");
+    const usr = uk ? seriesGauge(pts, uk) : [];
+    if (connDer.length)
+      makeLineChart("chart-conn-rate", "соединений / с", connDer, "rgb(99,102,241)", "rgba(99,102,241,0.15)");
+    if (bad.length)
+      makeLineChart("chart-bad", "telemt_connections_bad_total", bad, "rgb(244,63,94)", "rgba(244,63,94,0.12)");
+    if (wr.length)
+      makeLineChart("chart-writers", "active writers", wr, "rgb(34,211,153)", "rgba(34,211,153,0.12)");
+    if (usr.length)
+      makeLineChart("chart-user-cur", uk || "user sessions", usr, "rgb(34,197,235)", "rgba(34,197,235,0.12)");
+  }
+
+  async function takeMetricsSnapshot(showAlert) {
+    const sid = selectedServerId;
+    const port = Number($("stats-metrics-port").value) || 9090;
+    const el = $("stats-msg");
+    if (!sid) {
+      if (el) el.textContent = "Выберите сервер в боковой панели.";
+      destroyStatCharts();
+      renderStatsCards(null);
+      return false;
+    }
+    try {
+      const j = await apiJson("/api/metrics/snapshot", {
+        method: "POST",
+        body: { server_id: sid, metrics_port: port },
+      });
+      if (!j.ok) {
+        if (el) el.textContent = j.message || "Ошибка снимка";
+        if (showAlert) alert(j.message || "Ошибка снимка");
+        return false;
+      }
+      if (el) {
+        el.textContent =
+          "Снимок " +
+          new Date(j.t * 1000).toLocaleString("ru-RU") +
+          " · точек в истории: " +
+          (j.points_total ?? "?") +
+          " · серий: " +
+          (j.metrics_series ?? "?");
+      }
+      renderStatsCards(j.cards);
+      await renderStatsChartsFromHistory();
+      return true;
+    } catch (e) {
+      const msg = e.message || String(e);
+      if (el) el.textContent = msg;
+      if (showAlert) alert(msg);
+      return false;
+    }
+  }
+
+  async function refreshStatsPanel() {
+    if (!$("view-stats").classList.contains("hidden")) {
+      await renderStatsChartsFromHistory();
+      await takeMetricsSnapshot(false);
+    }
+  }
+
+  function syncStatsPortFromServersForm() {
+    const inp = $("metrics-port");
+    const st = $("stats-metrics-port");
+    if (!st) return;
+    const mp = inp ? Number(inp.value) : NaN;
+    if (Number.isFinite(mp) && mp >= 1 && mp <= 65535) {
+      st.value = String(mp);
+    }
+  }
+
+  function setView(view) {
+    document.querySelectorAll(".topbar-tab").forEach((t) => {
+      t.classList.toggle("is-active", t.getAttribute("data-view") === view);
+    });
+    $("view-stats").classList.toggle("hidden", view !== "stats");
+    $("view-servers").classList.toggle("hidden", view !== "servers");
+    $("view-providers").classList.toggle("hidden", view !== "providers");
+    localStorage.setItem(LS_VIEW, view);
+
+    clearStatsTimer();
+    if (view === "stats") {
+      syncStatsPortFromServersForm();
+      void refreshStatsPanel();
+      if ($("stats-auto-snapshot") && $("stats-auto-snapshot").checked) {
+        statsPollTimer = setInterval(() => void takeMetricsSnapshot(false), 60000);
+      }
+    }
+    if (view === "providers") {
+      void refreshVdsina();
+    }
+  }
+
   function fillSelect(sel, items, labelFn, valueKey, emptyLabel) {
     sel.innerHTML = "";
     if (emptyLabel) {
@@ -922,33 +1212,33 @@
       const bIp = document.createElement("button");
       bIp.type = "button";
       bIp.className = "btn btn-ghost btn-sm";
-      bIp.textContent = "В SSH";
+      bIp.textContent = "В панель";
+      bIp.title = "Создать новую запись сервера в панели с root и паролем из API";
       bIp.disabled = !ip;
       bIp.addEventListener("click", async () => {
-        $("ssh-host").value = ip;
-        $("ssh-port").value = 22;
-        $("ssh-user").value = "root";
+        const suggested = vdsinaSuggestedPanelName(s);
         bIp.disabled = true;
         try {
           const pr = await apiJson("/api/cloud/vdsina/servers/" + s.id + "/root-password");
-          document.querySelector('input[name="auth-mode"][value="password"]').checked = true;
-          $("ssh-password").value = pr.password || "";
-          $("ssh-key").value = "";
-          $("ssh-key-file").value = "";
-          $("ssh-key-passphrase").value = "";
-          syncAuthUi();
-          appendLog("SSH: " + ip + ", root, пароль из VDSina API.");
+          const pw = String((pr && pr.password) || "").trim();
+          if (!pw) {
+            openDialogVdsinaPartial({ name: suggested, host: ip, password: "" });
+            appendLog("VDSina: пароль пустой — откройте диалог и введите root-пароль вручную.");
+            return;
+          }
+          await createPanelServerFromVdsina({
+            name: suggested,
+            host: ip,
+            port: 22,
+            username: "root",
+            auth_mode: "password",
+            password: pw,
+            private_key: null,
+            private_key_passphrase: null,
+          });
         } catch (e) {
-          document.querySelector('input[name="auth-mode"][value="key"]').checked = true;
-          $("ssh-password").value = "";
-          syncAuthUi();
-          appendLog(
-            "SSH: IP " +
-              ip +
-              ", пользователь root. Пароль из API не получен: " +
-              (e.message || e) +
-              ". Укажите ключ или пароль вручную."
-          );
+          openDialogVdsinaPartial({ name: suggested, host: ip, password: "" });
+          appendLog("VDSina: не удалось добавить автоматически — " + (e.message || e) + ". Откройте диалог и сохраните вручную.");
         } finally {
           bIp.disabled = false;
         }
@@ -1016,21 +1306,33 @@
       appendLog("VDSina: создан сервер id " + created.id);
       await refreshVdsina();
       const ip = created.server ? vdsinaPublicIp(created.server) : "";
-      if (ip) {
-        $("ssh-host").value = ip;
-        $("ssh-port").value = 22;
-        $("ssh-user").value = "root";
+      const newId = created && created.id != null ? created.id : null;
+      if (ip && newId != null) {
+        const suggested =
+          (created.server && (created.server.name || created.server.full_name || "").trim()) ||
+          ($("vdsina-name").value || "").trim() ||
+          "VDSina #" + newId;
         try {
-          const pr = await apiJson("/api/cloud/vdsina/servers/" + created.id + "/root-password");
-          document.querySelector('input[name="auth-mode"][value="password"]').checked = true;
-          $("ssh-password").value = pr.password || "";
-          $("ssh-key").value = "";
-          $("ssh-key-file").value = "";
-          $("ssh-key-passphrase").value = "";
-          syncAuthUi();
-          appendLog("SSH: " + ip + ", root, пароль из VDSina API.");
+          const pr = await apiJson("/api/cloud/vdsina/servers/" + newId + "/root-password");
+          const pw = String((pr && pr.password) || "").trim();
+          if (pw) {
+            await createPanelServerFromVdsina({
+              name: suggested,
+              host: ip,
+              port: 22,
+              username: "root",
+              auth_mode: "password",
+              password: pw,
+              private_key: null,
+              private_key_passphrase: null,
+            });
+          } else {
+            openDialogVdsinaPartial({ name: suggested, host: ip, password: "" });
+            appendLog("VDSina: VPS создан, пароль root пустой — завершите в диалоге «Новый сервер».");
+          }
         } catch (e) {
-          appendLog("IP в SSH: " + ip + ". Пароль root из API: " + (e.message || e));
+          openDialogVdsinaPartial({ name: suggested, host: ip, password: "" });
+          appendLog("VDSina: VPS создан, импорт в панель: " + (e.message || e) + " — сохраните в диалоге.");
         }
       }
     } catch (e) {
@@ -1038,10 +1340,21 @@
     }
   });
 
-  const vdsPanel = $("vdsina-panel");
-  if (vdsPanel) {
-    vdsPanel.addEventListener("toggle", () => {
-      if (vdsPanel.open) void refreshVdsina();
+  document.querySelectorAll(".topbar-tab").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const v = btn.getAttribute("data-view");
+      if (v) setView(v);
+    });
+  });
+  const btnSnap = $("btn-stats-snapshot");
+  if (btnSnap) btnSnap.addEventListener("click", () => void takeMetricsSnapshot(true));
+  const autoSnap = $("stats-auto-snapshot");
+  if (autoSnap) {
+    autoSnap.addEventListener("change", () => {
+      clearStatsTimer();
+      if (!$("view-stats").classList.contains("hidden") && autoSnap.checked) {
+        statsPollTimer = setInterval(() => void takeMetricsSnapshot(false), 60000);
+      }
     });
   }
 
@@ -1120,6 +1433,10 @@
     } catch (e) {
       console.error(e);
     }
+
+    const vv = (localStorage.getItem(LS_VIEW) || "servers").trim();
+    const allow = { stats: true, servers: true, providers: true };
+    setView(allow[vv] ? vv : "servers");
   }
 
   boot();

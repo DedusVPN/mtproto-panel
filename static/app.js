@@ -934,12 +934,16 @@
   function renderStatsDashboard(cards, m) {
     const host = $("stats-dash");
     if (!host) return;
-    if (!m || typeof m !== "object" || !Object.keys(m).length) {
+    const mSafe = m && typeof m === "object" ? m : {};
+    const cSafe = cards && typeof cards === "object" ? cards : null;
+    const hasMetrics = Object.keys(mSafe).length > 0;
+    const hasCards = cSafe != null && Object.keys(cSafe).length > 0;
+    if (!hasMetrics && !hasCards) {
       host.innerHTML = '<p class="hint stats-dash-empty">Нет данных метрик. Снимите снимок или дождитесь авто-снимка.</p>';
       return;
     }
     const inner = HERO_KPIS.map((it) => {
-      const v = dashCardValue(cards, m, it);
+      const v = dashCardValue(cSafe, mSafe, it);
       return (
         '<div class="stats-card"><div class="stats-card-k">' +
         escapeAttr(it.label) +
@@ -1187,7 +1191,7 @@
     const last = pts.length ? pts[pts.length - 1] : null;
     const m = last && last.m ? last.m : {};
     renderStatsDashboard(data.last_cards || null, m);
-    updateStatsHistoryCharts(pts);
+    requestAnimationFrame(() => updateStatsHistoryCharts(pts));
   }
 
   async function takeMetricsSnapshot(showAlert) {
@@ -1222,7 +1226,9 @@
           (j.metrics_series ?? "?");
       }
       const m = j.metrics && typeof j.metrics === "object" ? j.metrics : {};
-      renderStatsDashboard(j.cards, m);
+      const c = j.cards && typeof j.cards === "object" ? j.cards : null;
+      renderStatsDashboard(c, m);
+      await new Promise((resolve) => requestAnimationFrame(() => resolve()));
       const r = await authFetch("/api/metrics/history?server_id=" + encodeURIComponent(sid));
       if (r.ok) {
         const data = await r.json();

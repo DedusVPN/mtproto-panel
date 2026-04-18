@@ -9,6 +9,11 @@ wheels/
 # Virtual environments
 .venv
 
+# Локальные секреты и заметки (не в репозиторий)
+.env
+double-hop-xray.txt
+instr.txt
+
 # Локальные профили SSH (секреты)
 data/servers.json
 data/*.json.tmp

@@ -8,7 +8,7 @@ COPY frontend/package.json frontend/package-lock.json ./frontend/
 RUN cd frontend && npm ci --ignore-scripts
 
 # Logo — copy to public/ so Vite bundles it as a static asset
-COPY logo.svg ./frontend/public/logo.svg
+# COPY logo.svg ./frontend/public/logo.svg
 
 # Build (vite outDir: '../static' → /workspace/static)
 COPY frontend/ ./frontend/

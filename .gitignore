@@ -26,6 +26,3 @@ secrets/
 static/
 frontend/node_modules/
 frontend/dist/
-
-# Прочее
-logo.svg

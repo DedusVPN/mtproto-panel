@@ -14,6 +14,9 @@ class MonitorSettings(BaseModel):
     enabled: bool = False
     telegram_bot_token: str = ""
     telegram_chat_id: str = ""
+    # ID топика форума супергруппы (message_thread_id).
+    # Пустая строка → сообщение в общий чат/канал без привязки к топику.
+    telegram_thread_id: str = ""
     # Кастомный базовый URL Telegram Bot API (reverse-proxy).
     # Пустая строка → используется официальный https://api.telegram.org
     telegram_api_base_url: str = ""
@@ -28,6 +31,7 @@ class MonitorSettingsUpdate(BaseModel):
     enabled: bool = False
     telegram_bot_token: str = ""
     telegram_chat_id: str = ""
+    telegram_thread_id: str = ""
     telegram_api_base_url: str = ""
     check_interval_seconds: int = Field(60, ge=10, le=3600)
     connect_timeout_seconds: int = Field(10, ge=2, le=60)

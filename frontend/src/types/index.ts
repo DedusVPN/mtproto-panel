@@ -231,6 +231,8 @@ export interface MonitorSettings {
   enabled: boolean
   telegram_bot_token: string
   telegram_chat_id: string
+  /** ID топика форума супергруппы (message_thread_id). Пустая строка = общий чат */
+  telegram_thread_id: string
   /** Кастомный базовый URL Bot API (reverse-proxy). Пустая строка = api.telegram.org */
   telegram_api_base_url: string
   check_interval_seconds: number

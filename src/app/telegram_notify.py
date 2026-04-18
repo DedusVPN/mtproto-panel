@@ -22,25 +22,44 @@ def _build_send_url(api_base_url: str, token: str) -> str:
     return f"{base}/bot{token}/sendMessage"
 
 
+def _thread_id_int(thread_id: str) -> int | None:
+    """Преобразует строковый thread_id в int. None если пустой или нечисловой."""
+    tid = (thread_id or "").strip()
+    if not tid:
+        return None
+    try:
+        return int(tid)
+    except ValueError:
+        return None
+
+
 async def send_telegram_message(
     bot_token: str,
     chat_id: str,
     text: str,
     api_base_url: str = "",
+    thread_id: str = "",
 ) -> tuple[bool, str]:
     """
     Отправляет сообщение через Telegram Bot API (официальный или кастомный).
+
+    Параметры:
+        thread_id — ID топика форума супергруппы (message_thread_id).
+                    Пустая строка → сообщение в общий чат без привязки к топику.
 
     Возвращает (успех, описание_ошибки_или_ok).
     """
     if not bot_token or not chat_id:
         return False, "bot_token или chat_id не настроены"
     url = _build_send_url(api_base_url, bot_token)
-    payload = {
+    payload: dict = {
         "chat_id": chat_id,
         "text": text,
         "parse_mode": "HTML",
     }
+    tid = _thread_id_int(thread_id)
+    if tid is not None:
+        payload["message_thread_id"] = tid
     try:
         async with httpx.AsyncClient(timeout=15.0) as client:
             resp = await client.post(url, json=payload)
@@ -62,6 +81,7 @@ async def notify_proxy_down(
     proxy_port: int,
     error: str,
     api_base_url: str = "",
+    thread_id: str = "",
 ) -> None:
     text = (
         f"🔴 <b>MTProxy недоступен</b>\n"
@@ -69,7 +89,7 @@ async def notify_proxy_down(
         f"Адрес: <code>{_esc(host)}:{proxy_port}</code>\n"
         f"Причина: {_esc(error)}"
     )
-    ok, msg = await send_telegram_message(bot_token, chat_id, text, api_base_url)
+    ok, msg = await send_telegram_message(bot_token, chat_id, text, api_base_url, thread_id)
     if not ok:
         logger.warning("Не удалось отправить уведомление Telegram (down): %s", msg)
 
@@ -81,13 +101,14 @@ async def notify_proxy_up(
     host: str,
     proxy_port: int,
     api_base_url: str = "",
+    thread_id: str = "",
 ) -> None:
     text = (
         f"✅ <b>MTProxy снова доступен</b>\n"
         f"Сервер: <b>{_esc(server_name)}</b>\n"
         f"Адрес: <code>{_esc(host)}:{proxy_port}</code>"
     )
-    ok, msg = await send_telegram_message(bot_token, chat_id, text, api_base_url)
+    ok, msg = await send_telegram_message(bot_token, chat_id, text, api_base_url, thread_id)
     if not ok:
         logger.warning("Не удалось отправить уведомление Telegram (up): %s", msg)
 

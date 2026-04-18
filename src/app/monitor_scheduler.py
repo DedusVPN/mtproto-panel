@@ -70,10 +70,11 @@ async def _check_one(
         return
 
     api_base = settings.telegram_api_base_url
+    thread = settings.telegram_thread_id
     if new_status == "down":
-        await notify_proxy_down(token, chat, server_name, host, proxy_port, error_msg or "", api_base)
+        await notify_proxy_down(token, chat, server_name, host, proxy_port, error_msg or "", api_base, thread)
     elif new_status == "up":
-        await notify_proxy_up(token, chat, server_name, host, proxy_port, api_base)
+        await notify_proxy_up(token, chat, server_name, host, proxy_port, api_base, thread)
 
 
 async def _run_loop() -> None:

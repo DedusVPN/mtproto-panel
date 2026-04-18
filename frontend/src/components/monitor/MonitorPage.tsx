@@ -23,6 +23,7 @@ const DEFAULT_SETTINGS: MonitorSettings = {
   enabled: false,
   telegram_bot_token: '',
   telegram_chat_id: '',
+  telegram_thread_id: '',
   telegram_api_base_url: '',
   check_interval_seconds: 60,
   connect_timeout_seconds: 10,
@@ -285,6 +286,33 @@ export function MonitorPage() {
                   ID чата или канала (можно узнать через @userinfobot)
                 </p>
               </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label className="text-[11px] text-text-muted">
+                Thread ID
+                <span className="ml-1.5 text-[10px] text-text-muted/60 font-normal normal-case tracking-normal">
+                  (опционально — для топика форума супергруппы)
+                </span>
+              </Label>
+              <Input
+                placeholder="12345"
+                value={settings.telegram_thread_id}
+                onChange={(e) => setSettings((p) => ({ ...p, telegram_thread_id: e.target.value }))}
+                className="text-xs font-mono max-w-[200px]"
+                autoComplete="off"
+                name="tg-thread-id"
+                data-lpignore="true"
+                data-form-type="other"
+              />
+              <p className="text-[10px] text-text-muted leading-relaxed">
+                Если супергруппа использует форум с топиками — укажите ID нужного топика
+                (<code className="font-mono">message_thread_id</code>).
+                Получить можно переслав любое сообщение из топика боту
+                <code className="font-mono ml-1">@JsonDumpBot</code> и найдя поле{' '}
+                <code className="font-mono">message_thread_id</code>.
+                Оставьте пустым для отправки в общий чат.
+              </p>
             </div>
 
             <div className="space-y-1.5">

@@ -48,10 +48,12 @@ async def api_monitor_test_telegram(body: MonitorSettingsUpdate):
     if not token or not chat:
         return {"ok": False, "message": "Укажите bot_token и chat_id"}
     api_base = body.telegram_api_base_url.strip().rstrip("/")
+    thread = body.telegram_thread_id.strip()
     ok, msg = await send_telegram_message(
         token,
         chat,
         "✅ <b>Тест уведомлений Dedus MTProxy</b>\nМониторинг настроен корректно.",
         api_base,
+        thread,
     )
     return {"ok": ok, "message": msg}

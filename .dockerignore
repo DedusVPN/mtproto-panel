@@ -1,18 +1,37 @@
-.git
-.venv
-__pycache__
-*.py[cod]
-.pytest_cache
-.mypy_cache
-.ruff_cache
-build/
-dist/
-*.egg-info
-data
-secrets
+# Git
+.git/
+.gitignore
+.gitattributes
+
+# Python artifacts
+**/__pycache__/
+**/*.py[cod]
+**/*.pyo
+.venv/
+
+# Secrets и локальные данные (не должны попасть в образ)
 .env
-*.zip
-terminals
-.cursor
-free-tg-mtproxy.zip
-nul
+secrets/
+data/
+
+# Статика — пересобирается в Docker Stage 1
+static/
+
+# Frontend artifacts (пересобираются в Docker Stage 1)
+frontend/node_modules/
+frontend/dist/
+frontend/.cache/
+frontend/.vite/
+
+# Документация и утилиты, не нужные в образе
+*.md
+!README.md
+scripts/
+config/
+deploy/init_docker_secrets.sh
+deploy/Dockerfile
+
+# Прочее
+*.cmd
+double-hop-xray.txt
+instr.txt

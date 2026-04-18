@@ -1,26 +1,41 @@
+# Dedus Panel — docker-compose
+#
+# Первый запуск:
+#   1. Сгенерировать секреты:
+#        bash deploy/init_docker_secrets.sh <пароль_администратора>
+#   2. Создать .env при необходимости (VDSINA_API_TOKEN, CLOUDFLARE_*, …)
+#   3. Собрать и запустить:
+#        docker compose up -d --build
+#
+# Повторная сборка после изменений фронтенда:
+#        docker compose build --no-cache && docker compose up -d
+
 services:
   panel:
     build:
       context: .
       dockerfile: deploy/Dockerfile
-    image: free-tg-mtproxy-panel:local
+    image: dedus-panel:latest
     restart: unless-stopped
     security_opt:
       - no-new-privileges:true
     cap_drop:
       - ALL
-    # Иначе entrypoint не сможет сбросить uid до panel (1000) после копирования секретов
+    # Нужно для entrypoint: сбросить uid → panel (1000)
     cap_add:
       - SETUID
       - SETGID
     read_only: true
     tmpfs:
       - /tmp:mode=1777,size=64M
+    env_file:
+      - path: .env
+        required: false
     environment:
       PANEL_AUTH_ENABLED: "true"
       PANEL_JWT_SECRET_FILE: /run/secrets/panel_jwt_secret
       PANEL_ADMIN_PASSWORD_HASH_FILE: /run/secrets/panel_admin_password_hash
-      # Доступ по IP и HTTP без TLS — иначе cookie сессии не работают
+      # HTTP без TLS — cookie сессии требуют либо HTTPS, либо PANEL_COOKIE_SECURE=false
       PANEL_COOKIE_SECURE: "false"
       PANEL_TRUST_FORWARDED_PROTO: "false"
       PANEL_EXPOSE_OPENAPI: "false"

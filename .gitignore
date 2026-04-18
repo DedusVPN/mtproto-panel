@@ -21,3 +21,11 @@ data/*.json.tmp
 
 # Docker / панель
 secrets/
+
+# Frontend build artifacts (генерируются npm run build / Docker)
+static/
+frontend/node_modules/
+frontend/dist/
+
+# Прочее
+logo.svg

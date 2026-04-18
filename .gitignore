@@ -1,0 +1,17 @@
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+
+# Virtual environments
+.venv
+
+# Локальные профили SSH (секреты)
+data/servers.json
+data/*.json.tmp
+
+# Docker / панель
+secrets/

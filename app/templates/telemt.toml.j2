@@ -1,0 +1,73 @@
+### Конфигурация Telemt (сгенерировано панелью)
+
+[general]
+use_middle_proxy = true
+middle_proxy_pool_size = 16
+me_keepalive_enabled = true
+me_keepalive_interval_secs = 20
+me_keepalive_jitter_secs = 5
+me_reconnect_max_concurrent_per_dc = 16
+me_reconnect_backoff_base_ms = 250
+me_reconnect_backoff_cap_ms = 15000
+me_reconnect_fast_retry_count = 20
+hardswap = true
+me_reinit_every_secs = 1200
+me_hardswap_warmup_delay_min_ms = 500
+me_hardswap_warmup_delay_max_ms = 1500
+me_hardswap_warmup_extra_passes = 3
+me_pool_min_fresh_ratio = 0.85
+update_every = 300
+me_config_stable_snapshots = 3
+me_pool_drain_ttl_secs = 120
+ad_tag = "{{ ad_tag }}"
+
+log_level = "{{ log_level }}"
+
+[timeouts]
+me_one_timeout_ms = 2000
+me_one_retry = 10
+
+[network]
+stun_use = true
+stun_tcp_fallback = true
+stun_servers = [
+  "stun1.l.google.com:19302",
+  "stun2.l.google.com:19302",
+  "stun.cloudflare.com:3478"
+]
+
+[general.modes]
+classic = {% if mode_classic %}true{% else %}false{% endif %}
+secure = {% if mode_secure %}true{% else %}false{% endif %}
+tls = {% if mode_tls %}true{% else %}false{% endif %}
+
+[general.links]
+show = "*"
+public_host = "{{ public_host }}"
+public_port = {{ public_port }}
+
+[server]
+port = {{ server_port }}
+metrics_port = {{ metrics_port }}
+metrics_whitelist = {{ metrics_whitelist_toml }}
+
+[server.api]
+enabled = true
+listen = "{{ api_listen }}"
+whitelist = {{ api_whitelist_toml }}
+minimal_runtime_enabled = false
+minimal_runtime_cache_ttl_ms = 1000
+
+[[server.listeners]]
+ip = "0.0.0.0"
+
+[censorship]
+tls_domain = "{{ tls_domain }}"
+mask = true
+tls_emulation = true
+tls_front_dir = "tlsfront"
+
+[access.users]
+{% for u in users -%}
+{{ u.username }} = "{{ u.secret_hex }}"
+{% endfor %}

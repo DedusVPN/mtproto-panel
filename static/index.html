@@ -1,0 +1,447 @@
+<!DOCTYPE html>
+<html lang="ru">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Telemt Panel</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=JetBrains+Mono:wght@400;500&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="/static/styles.css" />
+  </head>
+  <body>
+    <div class="shell">
+      <aside class="sidebar" aria-label="Серверы">
+        <div class="sidebar-head">
+          <div class="logo-mark" aria-hidden="true"></div>
+          <div class="logo-text">
+            <span class="logo-title">Telemt</span>
+            <span class="logo-sub">Панель SSH</span>
+          </div>
+        </div>
+
+        <div class="sidebar-actions">
+          <button type="button" class="btn btn-ghost btn-block" id="btn-server-add">
+            <span class="ico ico-plus"></span> Новый сервер
+          </button>
+        </div>
+
+        <div class="sidebar-section-title">Сохранённые серверы</div>
+        <div class="server-list" id="server-list"></div>
+
+        <p class="sidebar-hint">
+          Данные в <code>data/servers.json</code> на машине с панелью. Не коммитьте файл в git.
+        </p>
+
+        <details class="sidebar-cloud" id="vdsina-panel">
+          <summary class="sidebar-section-title cloud-summary">Облако · VDSina</summary>
+          <div class="vdsina-wrap">
+            <p class="sidebar-hint vdsina-line" id="vdsina-line"></p>
+            <div class="vdsina-actions">
+              <button type="button" class="btn btn-ghost btn-sm btn-block" id="btn-vdsina-refresh">Обновить</button>
+            </div>
+            <div class="vdsina-list" id="vdsina-list"></div>
+            <div class="vdsina-form">
+              <div class="row-2">
+                <div class="field field-tight">
+                  <label for="vdsina-dc">Датацентр</label>
+                  <select class="input input-select" id="vdsina-dc"></select>
+                </div>
+                <div class="field field-tight">
+                  <label for="vdsina-group">Группа</label>
+                  <select class="input input-select" id="vdsina-group"></select>
+                </div>
+              </div>
+              <div class="field field-tight">
+                <label for="vdsina-plan">Тариф</label>
+                <select class="input input-select" id="vdsina-plan"></select>
+              </div>
+              <div class="field field-tight">
+                <label for="vdsina-template">Шаблон ОС</label>
+                <select class="input input-select" id="vdsina-template"></select>
+              </div>
+              <div class="field field-tight">
+                <label for="vdsina-sshkey">SSH-ключ (необязательно)</label>
+                <select class="input input-select" id="vdsina-sshkey"></select>
+              </div>
+              <p class="sidebar-hint" style="margin: 0 0 0.35rem; font-size: 0.68rem">
+                Тариф-конструктор: если заказ отклоняется, задайте CPU / RAM (ГБ) / диск по лимитам тарифа в API.
+              </p>
+              <div class="row-2">
+                <div class="field field-tight">
+                  <label for="vdsina-cpu">CPU</label>
+                  <input class="input" id="vdsina-cpu" type="number" min="1" step="1" placeholder="—" />
+                </div>
+                <div class="field field-tight">
+                  <label for="vdsina-ram">RAM ГБ</label>
+                  <input class="input" id="vdsina-ram" type="number" min="1" step="1" placeholder="—" />
+                </div>
+              </div>
+              <div class="field field-tight">
+                <label for="vdsina-disk">Диск ГБ</label>
+                <input class="input" id="vdsina-disk" type="number" min="1" step="1" placeholder="—" />
+              </div>
+              <div class="field field-tight">
+                <label for="vdsina-name">Имя VPS</label>
+                <input class="input" id="vdsina-name" type="text" placeholder="telemt-1" autocomplete="off" />
+              </div>
+              <label class="check vdsina-check">
+                <input type="checkbox" id="vdsina-autoprolong" checked />
+                <span>Автопродление</span>
+              </label>
+              <button type="button" class="btn btn-primary btn-sm btn-block" id="btn-vdsina-create">Заказать VPS</button>
+            </div>
+            <p class="sidebar-hint vdsina-docs">
+              Токен: <code>VDSINA_API_TOKEN</code> (без слова Bearer). По умолчанию API:
+              <code>https://userapi.vdsina.com/v1</code>; для кабинета на <code>vdsina.ru</code> задайте
+              <code>VDSINA_API_BASE=https://userapi.vdsina.ru/v1</code>. Также поддерживается
+              <code>VDSINA_BASE_URL</code>. Файл <code>.env</code> в корне проекта; переменные среды перекрывают
+              <code>.env</code>. «В SSH» подставляет IP, root и пароль из API (<code>GET /server.password</code>).
+              При 401 — <code>/api/cloud/vdsina/status</code> (<code>token_diagnostics</code>).
+              <a href="https://www.vdsina.com/tech/api" target="_blank" rel="noopener">Документация API</a>.
+            </p>
+          </div>
+        </details>
+      </aside>
+
+      <div class="main">
+        <header class="main-header">
+          <div class="main-header-row">
+            <h1 class="page-title">Развёртывание Telemt</h1>
+            <div class="chip-row">
+              <select class="input input-select chip-select" id="preset-select" title="Шаблон">
+                <option value="">Шаблон конфига…</option>
+              </select>
+              <button type="button" class="btn btn-secondary btn-sm" id="btn-preset-apply">Применить</button>
+            </div>
+          </div>
+          <div class="toolbar">
+            <button type="button" class="btn btn-secondary" id="btn-test">
+              <span class="ico ico-pulse"></span> Проверить SSH
+            </button>
+            <button type="button" class="btn btn-primary" id="btn-deploy">
+              <span class="ico ico-rocket"></span> Развернуть
+            </button>
+            <button type="button" class="btn btn-secondary" id="btn-journal-start">
+              Live journalctl
+            </button>
+            <button type="button" class="btn btn-secondary" id="btn-journal-stop" disabled>Стоп</button>
+            <span class="toolbar-divider"></span>
+            <button type="button" class="btn btn-accent" id="btn-save-server" title="Сохранить текущие поля SSH">
+              Сохранить сервер
+            </button>
+          </div>
+        </header>
+
+        <div class="main-scroll">
+          <div class="alert alert-warn">
+            Рекомендуется слушать только доверенные интерфейсы (например <strong>127.0.0.1</strong>) или защищать панель TLS и
+            сетевым экраном. Учётные данные SSH передаются по WebSocket после входа в панель.
+          </div>
+
+          <div class="grid-main">
+            <section class="panel">
+              <div class="panel-head">
+                <h2>Подключение SSH</h2>
+                <span class="panel-meta" id="active-server-label"></span>
+              </div>
+              <div class="field">
+                <label>Вход</label>
+                <div class="segmented">
+                  <label class="seg-item"
+                    ><input type="radio" name="auth-mode" value="key" checked /><span>Ключ</span></label
+                  >
+                  <label class="seg-item"
+                    ><input type="radio" name="auth-mode" value="password" /><span>Пароль</span></label
+                  >
+                </div>
+              </div>
+              <div class="field">
+                <label for="ssh-host">Хост</label>
+                <input class="input" id="ssh-host" type="text" placeholder="203.0.113.10" autocomplete="off" />
+              </div>
+              <div class="row-2">
+                <div class="field">
+                  <label for="ssh-port">Порт</label>
+                  <input class="input" id="ssh-port" type="number" value="22" min="1" max="65535" />
+                </div>
+                <div class="field">
+                  <label for="ssh-user">Пользователь</label>
+                  <input class="input" id="ssh-user" type="text" value="root" autocomplete="username" />
+                </div>
+              </div>
+              <div id="auth-key-block">
+                <div class="field">
+                  <label for="ssh-key-file">Ключ (файл)</label>
+                  <input id="ssh-key-file" type="file" accept=".pem,.key,*" class="input-file" />
+                </div>
+                <div class="field">
+                  <label for="ssh-key">Ключ (текст)</label>
+                  <textarea class="input input-mono" id="ssh-key" rows="4" placeholder="-----BEGIN OPENSSH PRIVATE KEY-----"></textarea>
+                </div>
+                <div class="field">
+                  <label for="ssh-key-passphrase">Пароль от ключа</label>
+                  <input class="input" id="ssh-key-passphrase" type="password" autocomplete="off" />
+                </div>
+              </div>
+              <div id="auth-pass-block" class="hidden">
+                <div class="field">
+                  <label for="ssh-password">Пароль SSH</label>
+                  <input class="input" id="ssh-password" type="password" autocomplete="current-password" />
+                </div>
+              </div>
+            </section>
+
+            <section class="panel">
+              <div class="panel-head"><h2>Конфиг Telemt</h2></div>
+              <div class="field">
+                <label for="public-host">public_host</label>
+                <input class="input" id="public-host" type="text" placeholder="proxy.example.com" />
+              </div>
+              <div class="row-2">
+                <div class="field">
+                  <label for="public-port">public_port</label>
+                  <input class="input" id="public-port" type="number" value="443" />
+                </div>
+                <div class="field">
+                  <label for="server-port">server.port</label>
+                  <input class="input" id="server-port" type="number" value="443" />
+                </div>
+              </div>
+              <div class="row-2">
+                <div class="field">
+                  <label for="metrics-port">metrics_port</label>
+                  <input class="input" id="metrics-port" type="number" value="9090" />
+                </div>
+                <div class="field">
+                  <label for="api-listen">server.api listen</label>
+                  <input class="input" id="api-listen" type="text" value="127.0.0.1:9091" />
+                </div>
+              </div>
+              <div class="field">
+                <label for="tls-domain">censorship.tls_domain</label>
+                <input class="input" id="tls-domain" type="text" placeholder="example.com" />
+              </div>
+              <div class="field">
+                <label for="ad-tag">ad_tag (32 hex)</label>
+                <div class="input-with-btn">
+                  <input class="input" id="ad-tag" type="text" maxlength="32" />
+                  <button type="button" class="btn btn-secondary btn-sm" id="btn-gen-ad">hex</button>
+                </div>
+              </div>
+              <div class="field">
+                <label>Режимы ссылок</label>
+                <div class="checks">
+                  <label class="check"><input type="checkbox" id="mode-classic" /><span>classic</span></label>
+                  <label class="check"><input type="checkbox" id="mode-secure" /><span>secure</span></label>
+                  <label class="check"><input type="checkbox" id="mode-tls" checked /><span>tls</span></label>
+                </div>
+              </div>
+              <div class="field">
+                <label for="log-level">log_level</label>
+                <select class="input input-select" id="log-level">
+                  <option value="normal" selected>normal</option>
+                  <option value="verbose">verbose</option>
+                  <option value="debug">debug</option>
+                  <option value="silent">silent</option>
+                </select>
+              </div>
+              <div class="field">
+                <label for="metrics-whitelist">metrics_whitelist (JSON)</label>
+                <input class="input input-mono" id="metrics-whitelist" type="text" value='["127.0.0.1/32", "::1/128"]' />
+              </div>
+              <div class="field">
+                <label for="api-whitelist">api whitelist (JSON)</label>
+                <input class="input input-mono" id="api-whitelist" type="text" value='["127.0.0.1/32", "::1/128"]' />
+              </div>
+            </section>
+
+            <section class="panel">
+              <div class="panel-head"><h2>Пользователи</h2></div>
+              <p class="hint">Секрет — 32 hex.</p>
+              <div class="row-users" id="users-rows"></div>
+              <button type="button" class="btn btn-secondary btn-sm" id="btn-add-user">+ пользователь</button>
+            </section>
+
+            <section class="panel">
+              <div class="panel-head"><h2>Опции деплоя</h2></div>
+              <div class="checks checks-col">
+                <label class="check"><input type="checkbox" id="opt-apt" checked /><span>apt update &amp; upgrade</span></label>
+                <label class="check"><input type="checkbox" id="opt-sysctl-limits" checked /><span>limits в sysctl.conf</span></label>
+                <label class="check"><input type="checkbox" id="opt-sysctl-net" checked /><span>sysctl.d + limits.conf</span></label>
+                <label class="check"><input type="checkbox" id="opt-download" checked /><span>скачать telemt</span></label>
+                <label class="check"><input type="checkbox" id="opt-systemd" checked /><span>systemd unit</span></label>
+                <label class="check"><input type="checkbox" id="opt-start" checked /><span>enable + restart</span></label>
+                <label class="check"><input type="checkbox" id="opt-verify" checked /><span>curl /v1/users</span></label>
+              </div>
+              <div class="field" style="margin-top: 0.75rem">
+                <label for="binary-path">Бинарник</label>
+                <select class="input input-select" id="binary-path">
+                  <option value="/bin/telemt">/bin/telemt</option>
+                  <option value="/usr/local/bin/telemt">/usr/local/bin/telemt</option>
+                </select>
+              </div>
+            </section>
+
+            <section class="panel">
+              <div class="panel-head">
+                <h2>Безопасность и шейпер</h2>
+              </div>
+              <p class="hint">
+                Аналог настроек из
+                <a href="https://github.com/DonMatteoVPN/Reshala-Remnawave-Bedolaga" target="_blank" rel="noopener">Reshala</a>:
+                UFW, Fail2Ban, sysctl hardening, шейпер tc (скачивание: egress; загрузка: IFB). Выполняется в конце деплоя.
+              </p>
+              <div class="checks checks-col">
+                <label class="check"><input type="checkbox" id="opt-ufw" /><span>UFW: SSH + порты Telemt + доп., enable</span></label>
+                <label class="check"><input type="checkbox" id="opt-fail2ban" /><span>Fail2Ban SSH: бан 24ч, 3 попытки / 600с</span></label>
+                <label class="check"><input type="checkbox" id="opt-kernel-hardening" /><span>Kernel hardening (sysctl)</span></label>
+                <label class="check"><input type="checkbox" id="opt-shaper" /><span>Шейпер трафика: скачивание и загрузка (tc)</span></label>
+              </div>
+              <div class="field">
+                <label for="ufw-extra-ports">Доп. TCP для UFW (через запятую)</label>
+                <input class="input input-mono" id="ufw-extra-ports" type="text" placeholder="51820, …" />
+              </div>
+              <p class="hint shaper-hint">Скачивание (клиент ← сервер): исходящий HTB по sport. Загрузка (клиент → сервер): ingress → ifb0, HTB по dport.</p>
+              <p class="shaper-sub">Скачивание, МБ/с</p>
+              <div class="row-2">
+                <div class="field">
+                  <label for="shaper-dl-fast-mbs">Быстрые порты</label>
+                  <input class="input" id="shaper-dl-fast-mbs" type="number" step="0.125" min="0.125" value="2" />
+                </div>
+                <div class="field">
+                  <label for="shaper-dl-slow-mbs">Остальное</label>
+                  <input class="input" id="shaper-dl-slow-mbs" type="number" step="0.125" min="0.125" value="1" />
+                </div>
+              </div>
+              <p class="shaper-sub">Загрузка, МБ/с</p>
+              <div class="row-2">
+                <div class="field">
+                  <label for="shaper-ul-fast-mbs">Быстрые порты</label>
+                  <input class="input" id="shaper-ul-fast-mbs" type="number" step="0.125" min="0.125" value="2" />
+                </div>
+                <div class="field">
+                  <label for="shaper-ul-slow-mbs">Остальное</label>
+                  <input class="input" id="shaper-ul-slow-mbs" type="number" step="0.125" min="0.125" value="1" />
+                </div>
+              </div>
+              <div class="field">
+                <label for="shaper-ports">Быстрые TCP-порты (через запятую)</label>
+                <input class="input input-mono" id="shaper-ports" type="text" value="443,80,8080,8443" />
+              </div>
+            </section>
+          </div>
+
+          <div class="logs-grid">
+            <section class="panel panel-log">
+              <div class="panel-head"><h2>Журнал деплоя</h2></div>
+              <pre class="log log-empty" id="log">Ожидание…</pre>
+            </section>
+            <section class="panel panel-log">
+              <div class="panel-head"><h2>journalctl -f -u telemt</h2></div>
+              <pre class="log log-empty" id="journal-log">Запустите live.</pre>
+            </section>
+          </div>
+
+          <footer class="page-foot">
+            <code>known_hosts=None</code> — для продакшена задайте проверку ключей хоста.
+          </footer>
+        </div>
+      </div>
+    </div>
+
+    <dialog class="modal" id="dlg-server">
+      <form class="modal-card" id="form-server">
+        <div class="modal-head">
+          <h3 id="dlg-server-title">Сервер</h3>
+          <button type="button" class="btn btn-icon" id="dlg-server-close" aria-label="Закрыть">×</button>
+        </div>
+        <div class="modal-body">
+          <input type="hidden" id="dlg-server-id" value="" />
+          <div class="field">
+            <label for="dlg-name">Название</label>
+            <input class="input" id="dlg-name" required placeholder="Напр. EU-1" />
+          </div>
+          <div class="field">
+            <label for="dlg-host">Хост</label>
+            <input class="input" id="dlg-host" required autocomplete="off" />
+          </div>
+          <div class="row-2">
+            <div class="field">
+              <label for="dlg-port">Порт</label>
+              <input class="input" id="dlg-port" type="number" min="1" max="65535" value="22" />
+            </div>
+            <div class="field">
+              <label for="dlg-user">Пользователь</label>
+              <input class="input" id="dlg-user" value="root" />
+            </div>
+          </div>
+          <div class="field">
+            <label>Вход</label>
+            <div class="segmented">
+              <label class="seg-item"
+                ><input type="radio" name="dlg-auth-mode" value="key" checked /><span>Ключ</span></label
+              >
+              <label class="seg-item"
+                ><input type="radio" name="dlg-auth-mode" value="password" /><span>Пароль</span></label
+              >
+            </div>
+          </div>
+          <div id="dlg-auth-key-block">
+            <div class="field">
+              <label for="dlg-key">Приватный ключ</label>
+              <textarea class="input input-mono" id="dlg-key" rows="5" placeholder="PEM / OpenSSH"></textarea>
+            </div>
+            <div class="field">
+              <label for="dlg-key-pass">Пароль от ключа</label>
+              <input class="input" id="dlg-key-pass" type="password" />
+            </div>
+          </div>
+          <div id="dlg-auth-pass-block" class="hidden">
+            <div class="field">
+              <label for="dlg-password">Пароль SSH</label>
+              <input class="input" id="dlg-password" type="password" />
+            </div>
+          </div>
+          <div class="field" id="dlg-fetch-telemt-wrap">
+            <label class="check dlg-fetch-check">
+              <input type="checkbox" id="dlg-fetch-telemt" checked />
+              <span
+                >Перед сохранением считать <code>/etc/telemt/telemt.toml</code> и заполнить форму Telemt, если на
+                сервере уже всё настроено</span
+              >
+            </label>
+          </div>
+        </div>
+        <div class="modal-foot">
+          <button type="button" class="btn btn-secondary" id="dlg-cancel">Отмена</button>
+          <button type="submit" class="btn btn-primary" id="dlg-submit">Сохранить</button>
+        </div>
+      </form>
+    </dialog>
+
+    <div id="login-gate" class="login-gate hidden" role="dialog" aria-modal="true" aria-labelledby="login-gate-title">
+      <div class="login-card">
+        <h2 id="login-gate-title">Вход в панель</h2>
+        <p class="login-hint">Сессия защищена cookie HttpOnly и JWT.</p>
+        <form id="login-gate-form" class="login-form">
+          <div class="field">
+            <label for="login-user">Логин</label>
+            <input class="input" id="login-user" autocomplete="username" required />
+          </div>
+          <div class="field">
+            <label for="login-pass">Пароль</label>
+            <input class="input" id="login-pass" type="password" autocomplete="current-password" required />
+          </div>
+          <p id="login-err" class="login-err hidden" role="alert"></p>
+          <button type="submit" class="btn btn-primary btn-block">Войти</button>
+        </form>
+      </div>
+    </div>
+
+    <script src="/static/app.js"></script>
+  </body>
+</html>

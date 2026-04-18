@@ -7,7 +7,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
-      href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=JetBrains+Mono:wght@400;500&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,400..800;1,400..800&family=JetBrains+Mono:wght@400;500&display=swap"
       rel="stylesheet"
     />
     <link rel="stylesheet" href="/static/styles.css" />
@@ -18,15 +18,30 @@
         <div class="logo-mark logo-mark-sm" aria-hidden="true"></div>
         <div class="topbar-brand-text">
           <span class="topbar-title">Telemt</span>
-          <span class="topbar-sub">панель</span>
+          <span class="topbar-sub">панель управления</span>
         </div>
       </div>
-      <nav class="topbar-nav" aria-label="Разделы">
-        <button type="button" class="topbar-tab" data-view="stats" id="nav-tab-stats">Статистика MTProto</button>
-        <button type="button" class="topbar-tab is-active" data-view="servers" id="nav-tab-servers">
-          Настройка серверов
-        </button>
-        <button type="button" class="topbar-tab" data-view="providers" id="nav-tab-providers">Провайдеры</button>
+      <nav class="topbar-nav" aria-label="Основная навигация">
+        <div class="topbar-nav-section" role="presentation">
+          <span class="topbar-nav-label" id="nav-grp-core">Панель</span>
+          <div class="topbar-nav-tabs" role="tablist" aria-labelledby="nav-grp-core">
+            <button type="button" role="tab" class="topbar-tab is-active" data-view="servers" id="nav-tab-servers">
+              Серверы и деплой
+            </button>
+            <button type="button" role="tab" class="topbar-tab" data-view="stats" id="nav-tab-stats">Статистика</button>
+          </div>
+        </div>
+        <div class="topbar-nav-section" role="presentation">
+          <span class="topbar-nav-label" id="nav-grp-int">Интеграции</span>
+          <div class="topbar-nav-tabs" role="tablist" aria-labelledby="nav-grp-int">
+            <button type="button" role="tab" class="topbar-tab" data-view="providers" id="nav-tab-providers">
+              Хостинг (VPS)
+            </button>
+            <button type="button" role="tab" class="topbar-tab" data-view="cloudflare" id="nav-tab-cloudflare">
+              Cloudflare DNS
+            </button>
+          </div>
+        </div>
       </nav>
     </header>
     <div class="shell">
@@ -57,7 +72,10 @@
         <div id="view-stats" class="view-page hidden">
           <header class="main-header">
             <div class="main-header-row">
-              <h1 class="page-title">Статистика MTProto</h1>
+              <div class="page-heading page-heading-inline">
+                <h1 class="page-title">Статистика MTProto</h1>
+                <p class="page-lead page-lead-compact">Метрики с выбранного сервера по SSH.</p>
+              </div>
               <div class="chip-row stats-toolbar">
                 <label class="field-inline">
                   <span class="field-inline-label">Порт метрик</span>
@@ -147,7 +165,10 @@
         <div id="view-servers" class="view-page">
         <header class="main-header">
           <div class="main-header-row">
-            <h1 class="page-title">Развёртывание Telemt</h1>
+            <div class="page-heading page-heading-inline">
+              <h1 class="page-title">Серверы и деплой</h1>
+              <p class="page-lead page-lead-compact">SSH, конфигурация Telemt и выкладка на выбранный хост.</p>
+            </div>
             <div class="chip-row">
               <select class="input input-select chip-select" id="preset-select" title="Шаблон">
                 <option value="">Шаблон конфига…</option>
@@ -393,10 +414,16 @@
         <div id="view-providers" class="view-page hidden">
           <header class="main-header">
             <div class="main-header-row">
-              <h1 class="page-title">Провайдеры</h1>
+              <div class="page-heading">
+                <h1 class="page-title">Хостинг (VPS)</h1>
+                <p class="page-lead">
+                  Провайдеры виртуальных серверов: заказ VPS и перенос доступа в список серверов панели. DNS и CDN здесь не
+                  настраиваются.
+                </p>
+              </div>
             </div>
           </header>
-          <div class="main-scroll">
+          <div class="main-scroll main-scroll-narrow">
             <section class="panel providers-vdsina">
               <div class="panel-head">
                 <h2>VDSina</h2>
@@ -468,10 +495,25 @@
                 </p>
               </div>
             </section>
+          </div>
+        </div>
 
-            <section class="panel providers-cloudflare">
+        <div id="view-cloudflare" class="view-page hidden">
+          <header class="main-header">
+            <div class="main-header-row">
+              <div class="page-heading">
+                <h1 class="page-title">Cloudflare DNS</h1>
+                <p class="page-lead">
+                  Интеграция с DNS Cloudflare: это не хостинг VPS, а выравнивание A-записей с IPv4 серверов из панели.
+                  Токен и зона задаются в <code>.env</code> на машине с панелью.
+                </p>
+              </div>
+            </div>
+          </header>
+          <div class="main-scroll main-scroll-narrow">
+            <section class="panel panel-cloudflare">
               <div class="panel-head">
-                <h2>Cloudflare DNS</h2>
+                <h2>Синхронизация DNS</h2>
               </div>
               <div class="cf-dns-wrap" id="cf-dns-panel">
                 <p class="hint cf-dns-line" id="cf-dns-line"></p>
@@ -517,7 +559,7 @@
                   <button type="button" class="btn btn-ghost btn-sm" id="btn-cf-dns-del-apply">Удалить выбранные A</button>
                 </div>
 
-                <div class="cf-dns-subhead">Поддомены и серверы для Cloudflare</div>
+                <div class="cf-dns-subhead">Поддомены и серверы</div>
                 <p class="hint cf-dns-panel-hint">
                   Добавьте одну или несколько групп: в каждой укажите <strong>поддомен</strong> и отметьте серверы.
                   Один сервер может входить в несколько групп. В DNS попадает только <strong>IPv4</strong> из поля
@@ -538,7 +580,7 @@
                 <p class="hint cf-dns-docs">
                   <code>CLOUDFLARE_API_TOKEN</code>, <code>CLOUDFLARE_ZONE_ID</code> или
                   <code>CLOUDFLARE_ZONE_NAME</code>.
-                  <a href="https://developers.cloudflare.com/api/" target="_blank" rel="noopener">API Cloudflare</a>.
+                  <a href="https://developers.cloudflare.com/api/" target="_blank" rel="noopener">Документация API Cloudflare</a>.
                 </p>
               </div>
             </section>

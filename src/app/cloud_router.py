@@ -7,7 +7,6 @@ from fastapi import APIRouter, HTTPException
 
 from app.cloud_schemas import VdsinaCreateServerBody
 from app.cloud_settings import dotenv_configured, dotenv_path, get_vdsina_settings
-from app.cloudflare_settings import get_cloudflare_settings
 from app.http_shared import shared_http_client
 from app.providers.vdsina import VdsinaClient, VdsinaUpstreamError
 
@@ -18,20 +17,14 @@ router = APIRouter(prefix="/api/cloud/vdsina", tags=["cloud-vdsina"])
 
 @cloud_meta_router.get("/providers")
 async def cloud_providers() -> list[dict[str, Any]]:
+    """Только хостинг-провайдеры (VPS). DNS/Cloudflare — отдельный раздел API и UI."""
     s = get_vdsina_settings()
-    cf = get_cloudflare_settings()
     return [
         {
             "id": "vdsina",
             "label": "VDSina",
             "configured": bool(s.api_token.strip()),
             "api_base": s.api_base.rstrip("/"),
-        },
-        {
-            "id": "cloudflare",
-            "label": "Cloudflare DNS",
-            "configured": bool(cf.api_token.strip()),
-            "api_base": cf.api_base.rstrip("/"),
         },
     ]
 

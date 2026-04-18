@@ -28,6 +28,9 @@
   const LS_VIEW = "telemt_panel_view";
   const LS_STATS_HISTORY_RANGE = "telemt_stats_history_range";
 
+  /** Вызывается при переходе на вкладку Cloudflare (тело инициализируется ниже). */
+  const cfDnsNav = { refreshOverview: async () => {} };
+
   let statsPollTimer = null;
   const chartHandles = {};
   /** Последний server_id, для которого созданы экземпляры Chart (смена сервера — пересоздание). */
@@ -1383,6 +1386,8 @@
     $("view-stats").classList.toggle("hidden", view !== "stats");
     $("view-servers").classList.toggle("hidden", view !== "servers");
     $("view-providers").classList.toggle("hidden", view !== "providers");
+    const vCf = $("view-cloudflare");
+    if (vCf) vCf.classList.toggle("hidden", view !== "cloudflare");
     localStorage.setItem(LS_VIEW, view);
 
     clearStatsTimer();
@@ -1396,6 +1401,9 @@
     }
     if (view === "providers") {
       void refreshVdsina();
+    }
+    if (view === "cloudflare") {
+      void cfDnsNav.refreshOverview(false);
     }
     if (view !== "stats") {
       destroyStatCharts();
@@ -1994,6 +2002,8 @@
     $("btn-cf-dns-del-dry").addEventListener("click", () => postCfDnsDelete(true).catch((e) => console.error(e)));
     $("btn-cf-dns-del-apply").addEventListener("click", () => postCfDnsDelete(false).catch((e) => console.error(e)));
 
+    cfDnsNav.refreshOverview = refreshCfDnsOverview;
+
     updateCfDnsGroupsHint();
   }
 
@@ -2100,7 +2110,7 @@
     }
 
     const vv = (localStorage.getItem(LS_VIEW) || "servers").trim();
-    const allow = { stats: true, servers: true, providers: true };
+    const allow = { stats: true, servers: true, providers: true, cloudflare: true };
     setView(allow[vv] ? vv : "servers");
   }
 

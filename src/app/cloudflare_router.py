@@ -39,6 +39,21 @@ def _client() -> CloudflareClient:
     return CloudflareClient(shared_http_client(), get_cloudflare_settings())
 
 
+@cloudflare_router.get("/config-summary")
+async def cloudflare_config_summary() -> dict[str, Any]:
+    """Локальная сводка из .env: без запросов к API Cloudflare (в отличие от /overview)."""
+    cf = get_cloudflare_settings()
+    tok = cf.api_token.strip()
+    return {
+        "kind": "dns_integration",
+        "label": "Cloudflare DNS",
+        "configured": bool(tok),
+        "api_base": cf.api_base.rstrip("/"),
+        "zone_id_set": bool(cf.zone_id.strip()),
+        "zone_name_set": bool(cf.zone_name.strip()),
+    }
+
+
 @cloudflare_router.get("/overview")
 async def cloudflare_overview() -> dict[str, Any]:
     """

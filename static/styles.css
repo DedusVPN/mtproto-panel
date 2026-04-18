@@ -1152,6 +1152,10 @@ details.sidebar-cloud[open] > .cloud-summary::before {
   margin-right: 0.25rem;
 }
 
+.cf-dns-del-actions {
+  margin-top: 0.35rem;
+}
+
 .cf-dns-actions-row2 {
   margin-top: -0.15rem;
 }

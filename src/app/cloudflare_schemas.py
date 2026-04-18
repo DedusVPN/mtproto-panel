@@ -42,6 +42,26 @@ class CloudflarePanelDnsRow(BaseModel):
         return v.strip()
 
 
+class CloudflareDeleteDnsRecordRow(BaseModel):
+    """Строка из сводки для удаления A по id (имя и IP — только для лога)."""
+
+    model_config = ConfigDict(extra="ignore")
+
+    id: Annotated[str, Field(..., min_length=1)]
+    relative_name: str = ""
+    content: str = ""
+
+    @field_validator("id", "relative_name", "content", mode="after")
+    @classmethod
+    def strip_fields(cls, v: str) -> str:
+        return str(v).strip()
+
+
+class CloudflareDeleteDnsRecordsRequest(BaseModel):
+    records: Annotated[list[CloudflareDeleteDnsRecordRow], Field(min_length=1, max_length=100)]
+    dry_run: bool = False
+
+
 class CloudflareSyncPanelServersRequest(BaseModel):
     """
     Желаемое состояние A-записей по серверам панели.

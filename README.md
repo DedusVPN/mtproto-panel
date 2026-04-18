@@ -31,7 +31,7 @@ uv run python -m uvicorn app.main:app --host "${PANEL_BIND_HOST:-0.0.0.0}" --por
 В `.env`: `CLOUDFLARE_API_TOKEN` и зона — `CLOUDFLARE_ZONE_ID` или `CLOUDFLARE_ZONE_NAME`.
 
 - **Панель:** **Провайдеры** → Cloudflare — сводка A только для IP из панели; группы «поддомен → отмеченные серверы» (сервер можно выбрать в нескольких группах); **dry-run** с логом и применение.
-- API: `GET /api/cloud/cloudflare/overview`, `POST /api/cloud/cloudflare/sync-panel-servers` (поле `ttl`: `1` = авто, иначе `60`…`86400` с).
+- API: `GET /api/cloud/cloudflare/overview`, `POST /api/cloud/cloudflare/sync-panel-servers`, `POST /api/cloud/cloudflare/delete-dns-records`.
 - CLI (одна группа A): `uv run python scripts/cloudflare_sync_dns.py --dry-run --name mt --ips 1.2.3.4,5.6.7.8`.
 
 ## Docker

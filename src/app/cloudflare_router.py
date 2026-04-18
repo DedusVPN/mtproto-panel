@@ -1,11 +1,16 @@
 from __future__ import annotations
 
+import asyncio
 from typing import Any
 
 from fastapi import APIRouter, HTTPException
 
 from app.cloudflare_panel import build_dns_overview_view, build_panel_servers_dns_rows, ipv4_from_host
-from app.cloudflare_schemas import CloudflareSyncPanelServersRequest, normalize_ipv4_unique_list
+from app.cloudflare_schemas import (
+    CloudflareDeleteDnsRecordsRequest,
+    CloudflareSyncPanelServersRequest,
+    normalize_ipv4_unique_list,
+)
 from app.cloudflare_settings import get_cloudflare_settings
 from app.http_shared import shared_http_client
 from app.providers.cloudflare_api import CloudflareApiError, CloudflareClient
@@ -115,7 +120,8 @@ async def cloudflare_sync_panel_servers(body: CloudflareSyncPanelServersRequest)
 
     results: list[dict[str, Any]] = []
 
-    for nm, raw_ips in by_name.items():
+    name_items = list(by_name.items())
+    for idx, (nm, raw_ips) in enumerate(name_items):
         sids = name_to_servers.get(nm, [])
         try:
             ips = normalize_ipv4_unique_list(raw_ips)
@@ -152,5 +158,23 @@ async def cloudflare_sync_panel_servers(body: CloudflareSyncPanelServersRequest)
         except CloudflareApiError as e:
             full_log.append(f"«{nm}»: ошибка API: {e}")
             results.append({"name": nm, "ok": False, "server_ids": sids, "error": str(e)})
+        if idx < len(name_items) - 1:
+            await asyncio.sleep(0.45)
 
     return {"dry_run": dry, "zone": zname, "errors": errors, "results": results, "log": full_log}
+
+
+@cloudflare_router.post("/delete-dns-records")
+async def cloudflare_delete_dns_records(body: CloudflareDeleteDnsRecordsRequest) -> dict[str, Any]:
+    """Удаление выбранных A-записей по id (из сводки)."""
+    c = _client()
+    try:
+        zid, zname = await c.resolve_zone_id()
+    except CloudflareApiError as e:
+        _raise_cf(e)
+    entries = [(r.id, r.relative_name or "?", r.content or "?") for r in body.records]
+    try:
+        r = await c.delete_dns_records_batch(zid, entries, dry_run=body.dry_run)
+    except CloudflareApiError as e:
+        _raise_cf(e)
+    return {"zone": zname, **r}

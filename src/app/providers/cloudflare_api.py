@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import asyncio
+import random
 from typing import Any
 
 import httpx
@@ -51,23 +53,32 @@ class CloudflareClient:
 
     async def _request(self, method: str, path: str, **kw: Any) -> dict[str, Any]:
         url = f"{self._base}{path}" if path.startswith("/") else f"{self._base}/{path}"
-        try:
-            r = await self._http.request(method, url, headers=self._headers(), **kw)
-        except httpx.RequestError as e:
-            raise CloudflareApiError(f"Сеть: {e}", http_status=None) from e
-        try:
-            body = r.json()
-        except Exception:
-            body = {"success": False, "errors": [{"message": r.text[:500]}]}
-        if not isinstance(body, dict):
-            raise CloudflareApiError("Некорректный JSON ответа", http_status=r.status_code)
-        if not body.get("success"):
-            errs = body.get("errors")
-            em: list[dict[str, Any]] = errs if isinstance(errs, list) else []
-            parts = [str(x.get("message") or x) for x in em if isinstance(x, dict)]
-            msg = "; ".join(parts) if parts else str(body.get("errors", "ошибка API"))
-            raise CloudflareApiError(msg, http_status=r.status_code, errors=em)
-        return body
+        headers = self._headers()
+        for attempt in range(4):
+            try:
+                r = await self._http.request(method, url, headers=headers, **kw)
+            except httpx.RequestError as e:
+                if attempt < 3:
+                    await asyncio.sleep(0.2 * (2**attempt) + random.uniform(0, 0.08))
+                    continue
+                detail = str(e).strip() or e.__class__.__name__
+                raise CloudflareApiError(
+                    f"Сеть: {detail or 'сбой соединения с API Cloudflare (повторите попытку)'}",
+                    http_status=None,
+                ) from e
+            try:
+                body = r.json()
+            except Exception:
+                body = {"success": False, "errors": [{"message": r.text[:500]}]}
+            if not isinstance(body, dict):
+                raise CloudflareApiError("Некорректный JSON ответа", http_status=r.status_code)
+            if not body.get("success"):
+                errs = body.get("errors")
+                em: list[dict[str, Any]] = errs if isinstance(errs, list) else []
+                parts = [str(x.get("message") or x) for x in em if isinstance(x, dict)]
+                msg = "; ".join(parts) if parts else str(body.get("errors", "ошибка API"))
+                raise CloudflareApiError(msg, http_status=r.status_code, errors=em)
+            return body
 
     async def verify_token(self) -> dict[str, Any]:
         return (await self._request("GET", "/user/tokens/verify")).get("result") or {}
@@ -163,6 +174,30 @@ class CloudflareClient:
     async def delete_record(self, zone_id: str, record_id: str) -> None:
         await self._request("DELETE", f"/zones/{zone_id}/dns_records/{record_id}")
 
+    async def delete_dns_records_batch(
+        self,
+        zone_id: str,
+        entries: list[tuple[str, str, str]],
+        *,
+        dry_run: bool,
+    ) -> dict[str, Any]:
+        """entries: (record_id, relative_name для лога, ip для лога)."""
+        log: list[str] = []
+        deleted: list[str] = []
+        clean = [(a.strip(), b or "?", c or "?") for a, b, c in entries if isinstance(a, str) and a.strip()]
+        if not clean:
+            return {"dry_run": dry_run, "log": ["Нет записей для удаления."], "deleted_record_ids": []}
+        for i, (rid, rel, ip) in enumerate(clean):
+            if dry_run:
+                log.append(f"[dry-run] Удалить A: id={rid}, поддомен={rel}, ip={ip}")
+            else:
+                await self.delete_record(zone_id, rid)
+                log.append(f"Удалено A: id={rid}, поддомен={rel}, ip={ip}")
+                deleted.append(rid)
+                if i < len(clean) - 1:
+                    await asyncio.sleep(0.15)
+        return {"dry_run": dry_run, "log": log, "deleted_record_ids": deleted}
+
     async def sync_a_records(
         self,
         *,
@@ -236,13 +271,17 @@ class CloudflareClient:
                 "log": log,
             }
 
-        for rid in to_delete:
+        for i, rid in enumerate(to_delete):
             await self.delete_record(zone_id, rid)
             deleted.append(rid)
+            if i < len(to_delete) - 1:
+                await asyncio.sleep(0.12)
 
-        for ip in to_create:
+        for i, ip in enumerate(to_create):
             await self.create_a(zone_id, name_fqdn=fqdn, content=ip, proxied=proxied, ttl=ttl)
             created.append(ip)
+            if i < len(to_create) - 1:
+                await asyncio.sleep(0.12)
 
         final = await self.list_a_records(zone_id, fqdn)
         final_ips = sorted({str(x.get("content")) for x in final if isinstance(x.get("content"), str)})

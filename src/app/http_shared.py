@@ -9,9 +9,9 @@ def shared_http_client() -> httpx.AsyncClient:
     global _shared
     if _shared is None:
         _shared = httpx.AsyncClient(
-            timeout=httpx.Timeout(60.0, connect=20.0),
+            timeout=httpx.Timeout(60.0, connect=30.0),
             follow_redirects=True,
-            limits=httpx.Limits(max_connections=20, max_keepalive_connections=10),
+            limits=httpx.Limits(max_connections=50, max_keepalive_connections=25),
         )
     return _shared
 

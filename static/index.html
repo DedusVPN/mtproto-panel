@@ -500,6 +500,7 @@
                   <table class="cf-dns-panel-table" id="cf-dns-cf-table" hidden>
                     <thead>
                       <tr>
+                        <th class="cf-dns-col-check" title="Выбор для удаления"></th>
                         <th>Поддомен</th>
                         <th>IP</th>
                         <th>Серверы панели</th>
@@ -508,6 +509,12 @@
                     <tbody id="cf-dns-cf-tbody"></tbody>
                   </table>
                   <p class="hint cf-dns-panel-empty" id="cf-dns-cf-empty">Нажмите «Обновить сводку».</p>
+                </div>
+                <div class="cf-dns-actions cf-dns-del-actions">
+                  <button type="button" class="btn btn-ghost btn-sm" id="btn-cf-dns-del-dry">
+                    Удалить выбранные A (dry-run)
+                  </button>
+                  <button type="button" class="btn btn-ghost btn-sm" id="btn-cf-dns-del-apply">Удалить выбранные A</button>
                 </div>
 
                 <div class="cf-dns-subhead">Поддомены и серверы для Cloudflare</div>

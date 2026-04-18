@@ -1712,6 +1712,15 @@
           const tr = document.createElement("tr");
           const m = Array.isArray(r.matched_panel_servers) ? r.matched_panel_servers : [];
           const names = m.map((x) => (x.name || x.id || "").trim()).filter(Boolean);
+          const tdChk = document.createElement("td");
+          tdChk.className = "cf-dns-col-check";
+          const cb = document.createElement("input");
+          cb.type = "checkbox";
+          cb.className = "cf-dns-del-chk";
+          cb.dataset.recordId = String(r.id || "");
+          cb.dataset.relativeName = String(r.relative_name != null ? r.relative_name : "");
+          cb.dataset.content = String(r.content || "");
+          tdChk.appendChild(cb);
           const td0 = document.createElement("td");
           td0.className = "cf-dns-mono";
           td0.textContent = String(r.relative_name != null ? r.relative_name : "");
@@ -1720,6 +1729,7 @@
           td1.textContent = String(r.content || "");
           const td2 = document.createElement("td");
           td2.textContent = names.length ? names.join(", ") : "—";
+          tr.appendChild(tdChk);
           tr.appendChild(td0);
           tr.appendChild(td1);
           tr.appendChild(td2);
@@ -1913,6 +1923,42 @@
       return items;
     }
 
+    function collectCfDnsDeleteRecords() {
+      const tbody = $("cf-dns-cf-tbody");
+      if (!tbody) return [];
+      const out = [];
+      for (const cb of tbody.querySelectorAll(".cf-dns-del-chk:checked")) {
+        const id = String(cb.dataset.recordId || "").trim();
+        if (!id) continue;
+        out.push({
+          id,
+          relative_name: String(cb.dataset.relativeName || ""),
+          content: String(cb.dataset.content || ""),
+        });
+      }
+      return out;
+    }
+
+    async function postCfDnsDelete(dryRun) {
+      const records = collectCfDnsDeleteRecords();
+      if (!records.length) {
+        alert("Отметьте A-записи в таблице сводки");
+        return;
+      }
+      if (!dryRun && !confirm("Удалить выбранные A-записи в Cloudflare?")) return;
+      try {
+        const data = await apiJson("/api/cloud/cloudflare/delete-dns-records", {
+          method: "POST",
+          body: { records, dry_run: dryRun },
+        });
+        cfDnsShowLog(data.log);
+        cfDnsShowJson(data);
+        await refreshCfDnsOverview(true);
+      } catch (e) {
+        cfDnsShowErr(e);
+      }
+    }
+
     async function postCfDnsPanelSync(dryRun) {
       const items = collectCfDnsSyncItems();
       if (!items.length) {
@@ -1944,6 +1990,9 @@
       addCfDnsGroup({ name: "", ids: [] });
       updateCfDnsGroupsHint();
     });
+
+    $("btn-cf-dns-del-dry").addEventListener("click", () => postCfDnsDelete(true).catch((e) => console.error(e)));
+    $("btn-cf-dns-del-apply").addEventListener("click", () => postCfDnsDelete(false).catch((e) => console.error(e)));
 
     updateCfDnsGroupsHint();
   }

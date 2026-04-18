@@ -710,10 +710,6 @@ export function ServersPage({ onOpenServerDialog, onApplyTelemt: _onApply, telem
           <LogPanel title="Журнал деплоя" lines={deployLines} empty="Ожидание…" />
           <LogPanel title="journalctl -f -u telemt" lines={journalLines} empty="Запустите live." />
         </div>
-
-        <p className="mt-3 text-center text-xs text-text-muted">
-          <code className="font-mono">known_hosts=None</code> — для продакшена настройте проверку ключей хоста
-        </p>
       </div>
     </div>
   )

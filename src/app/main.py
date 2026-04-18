@@ -11,6 +11,7 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import ValidationError
 
+from app.db import close_db, init_db
 from app.auth_http import PanelAuthMiddleware
 from app.auth_router import router as auth_router
 from app.deploy import run_deploy, ssh_connect_test, stream_telemt_journal
@@ -35,6 +36,7 @@ STATIC_DIR = Path(__file__).resolve().parents[2] / "static"
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
+    await init_db()
     shared_http_client()
     start_scheduler()
     try:
@@ -42,6 +44,7 @@ async def lifespan(_app: FastAPI):
     finally:
         await stop_scheduler()
         await close_shared_http_client()
+        await close_db()
 
 
 app = FastAPI(title="Telemt — панель развёртывания по SSH", lifespan=lifespan)

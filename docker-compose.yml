@@ -11,12 +11,33 @@
 #        docker compose build --no-cache && docker compose up -d
 
 services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-panel}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-panel}
+      POSTGRES_DB: ${POSTGRES_DB:-panel}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U panel -d panel"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+
   panel:
     build:
       context: .
       dockerfile: deploy/Dockerfile
     image: dedus-panel:latest
     restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
     security_opt:
       - no-new-privileges:true
     cap_drop:
@@ -41,11 +62,13 @@ services:
       PANEL_EXPOSE_OPENAPI: "false"
       UVICORN_HOST: "0.0.0.0"
       UVICORN_PORT: "8765"
+      DATABASE_URL: postgresql+asyncpg://panel:panel@postgres:5432/panel
     secrets:
       - panel_jwt_secret
       - panel_admin_password_hash
     volumes:
-      - panel_data:/app/data
+      # Legacy JSON с прежних версий панели; entrypoint импортирует в PG один раз (пока БД пуста)
+      - panel_data:/app/data:ro
     ports:
       - "8765:8765"
 
@@ -56,4 +79,5 @@ secrets:
     file: ./secrets/panel_admin_password_hash
 
 volumes:
+  postgres_data:
   panel_data:

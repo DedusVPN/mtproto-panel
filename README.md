@@ -8,9 +8,16 @@
 
 ```bash
 uv sync
+# Поднимите PostgreSQL (например: docker compose up -d postgres) и задайте в .env:
+#   DATABASE_URL=postgresql+asyncpg://panel:panel@127.0.0.1:5432/panel
+uv run alembic upgrade head
 # Слушает 0.0.0.0:8765 — откройте http://<IP_сервера>:8765 (ограничьте доступ файрволом / VPN).
 uv run python -m uvicorn app.main:app --host "${PANEL_BIND_HOST:-0.0.0.0}" --port "${PANEL_BIND_PORT:-8765}"
 ```
+
+Ручное слияние JSON в БД (upsert): `uv run python scripts/migrate_json_to_postgres.py`
+
+**Docker:** том **`panel_data`** снова монтируется в `/app/data` (только чтение). После `alembic upgrade head` entrypoint импортирует legacy JSON в PostgreSQL, пока соответствующие таблицы пусты (одноразово после перехода на PG). Переопределить каталог: **`LEGACY_DATA_DIR`**.
 
 Обёртки: **`run_panel.sh`**, **`run_panel.cmd`** (те же переменные `PANEL_BIND_HOST` / `PANEL_BIND_PORT`).
 
@@ -23,7 +30,7 @@ uv run python -m uvicorn app.main:app --host "${PANEL_BIND_HOST:-0.0.0.0}" --por
 |------|------------|
 | `src/app/` | код FastAPI-приложения |
 | `static/` | веб-интерфейс панели |
-| `data/` | локальные данные (`servers.json`, не в git) |
+| `data/` | опционально: старые JSON до миграции; приложение хранит состояние в PostgreSQL |
 | `deploy/` | `Dockerfile`, `docker-entrypoint.sh`, `init_docker_secrets.sh` |
 | `scripts/` | утилиты и проверка auth |
 ### Cloudflare DNS
@@ -40,6 +47,10 @@ uv run python -m uvicorn app.main:app --host "${PANEL_BIND_HOST:-0.0.0.0}" --por
 bash deploy/init_docker_secrets.sh '<пароль_панели>'
 docker compose up -d --build
 ```
+
+Сервис **postgres** поднимает БД с томом `postgres_data`; в compose по умолчанию пользователь/пароль **`panel`/`panel`** и **`DATABASE_URL`** на сервис `postgres`. Для продакшена задайте свой пароль и строку подключения через **`docker-compose.override.yml`** (и согласованные `POSTGRES_*` у `postgres` и `DATABASE_URL` у `panel`).
+
+Перед `uvicorn` entrypoint выполняет **`alembic upgrade head`** (повтор при недоступной БД).
 
 Порт **8765** публикуется на **всех интерфейсах** хоста (`8765:8765`). Ограничьте доступ на уровне ОС/облака.
 

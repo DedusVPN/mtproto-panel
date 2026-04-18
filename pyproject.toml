@@ -9,7 +9,10 @@ description = "Панель развёртывания Telemt по SSH и инт
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
+    "alembic>=1.14.0",
+    "asyncpg>=0.30.0",
     "fastapi>=0.115.0",
+    "sqlalchemy[asyncio]>=2.0.36",
     "uvicorn[standard]>=0.32.0",
     "asyncssh>=2.18.0",
     "pydantic>=2.9.0",

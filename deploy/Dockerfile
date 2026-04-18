@@ -32,7 +32,8 @@ RUN useradd --system --create-home --uid 1000 --shell /usr/sbin/nologin panel \
 WORKDIR /app
 
 # 1) Install only third-party dependencies (no project build yet) — cached layer
-COPY pyproject.toml uv.lock README.md ./
+COPY pyproject.toml uv.lock README.md alembic.ini ./
+COPY alembic ./alembic
 RUN uv sync --frozen --no-cache --no-dev --no-install-project
 
 # 2) Copy application source, then install the project itself

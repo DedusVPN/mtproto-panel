@@ -1,57 +1,33 @@
 from __future__ import annotations
 
-import asyncio
-import json
-import os
-from pathlib import Path
+from sqlalchemy import select
 
+from app.db import session_factory
+from app.models import MonitorSettingsRow
 from app.monitor_schemas import MonitorSettings, MonitorSettingsUpdate
 
-_DATA_DIR = Path(__file__).resolve().parents[2] / "data"
-_FILE = _DATA_DIR / "monitor_settings.json"
-_lock = asyncio.Lock()
-
-
-def _ensure_data_dir() -> None:
-    _DATA_DIR.mkdir(parents=True, exist_ok=True)
-
-
-def _chmod_private(path: Path) -> None:
-    try:
-        os.chmod(path, 0o600)
-    except (NotImplementedError, OSError, AttributeError):
-        pass
-
-
-def _read_raw() -> dict:
-    if not _FILE.is_file():
-        return {}
-    try:
-        data = json.loads(_FILE.read_text(encoding="utf-8"))
-    except (json.JSONDecodeError, OSError):
-        return {}
-    if not isinstance(data, dict):
-        return {}
-    return data
-
-
-def _write_atomic(settings: MonitorSettings) -> None:
-    _ensure_data_dir()
-    raw = settings.model_dump_json(indent=2)
-    tmp = _FILE.with_suffix(".json.tmp")
-    tmp.write_text(raw, encoding="utf-8")
-    _chmod_private(tmp)
-    tmp.replace(_FILE)
-    _chmod_private(_FILE)
+_MONITOR_ROW_ID = 1
 
 
 async def load_monitor_settings() -> MonitorSettings:
-    async with _lock:
-        raw = _read_raw()
-    try:
-        return MonitorSettings.model_validate(raw)
-    except Exception:
-        return MonitorSettings()
+    fac = session_factory()
+    async with fac() as session:
+        row = await session.get(MonitorSettingsRow, _MONITOR_ROW_ID)
+        if row is None:
+            return MonitorSettings()
+        raw = {
+            "enabled": row.enabled,
+            "telegram_bot_token": row.telegram_bot_token or "",
+            "telegram_chat_id": row.telegram_chat_id or "",
+            "check_interval_seconds": row.check_interval_seconds,
+            "connect_timeout_seconds": row.connect_timeout_seconds,
+            "failure_threshold": row.failure_threshold,
+            "servers": row.servers_json if isinstance(row.servers_json, dict) else {},
+        }
+        try:
+            return MonitorSettings.model_validate(raw)
+        except Exception:
+            return MonitorSettings()
 
 
 async def save_monitor_settings(update: MonitorSettingsUpdate) -> MonitorSettings:
@@ -64,6 +40,35 @@ async def save_monitor_settings(update: MonitorSettingsUpdate) -> MonitorSetting
         failure_threshold=update.failure_threshold,
         servers=update.servers,
     )
-    async with _lock:
-        _write_atomic(settings)
+    servers_json = {k: v.model_dump(mode="json") for k, v in settings.servers.items()}
+    fac = session_factory()
+    async with fac() as session:
+        async with session.begin():
+            res = await session.execute(
+                select(MonitorSettingsRow)
+                .where(MonitorSettingsRow.id == _MONITOR_ROW_ID)
+                .with_for_update()
+            )
+            existing = res.scalar_one_or_none()
+            if existing is None:
+                session.add(
+                    MonitorSettingsRow(
+                        id=_MONITOR_ROW_ID,
+                        enabled=settings.enabled,
+                        telegram_bot_token=settings.telegram_bot_token,
+                        telegram_chat_id=settings.telegram_chat_id,
+                        check_interval_seconds=settings.check_interval_seconds,
+                        connect_timeout_seconds=settings.connect_timeout_seconds,
+                        failure_threshold=settings.failure_threshold,
+                        servers_json=servers_json,
+                    )
+                )
+            else:
+                existing.enabled = settings.enabled
+                existing.telegram_bot_token = settings.telegram_bot_token
+                existing.telegram_chat_id = settings.telegram_chat_id
+                existing.check_interval_seconds = settings.check_interval_seconds
+                existing.connect_timeout_seconds = settings.connect_timeout_seconds
+                existing.failure_threshold = settings.failure_threshold
+                existing.servers_json = servers_json
     return settings

@@ -66,13 +66,6 @@ export function Sidebar({ onAddServer, onEditServer, onSelectServer }: SidebarPr
           />
         ))}
       </div>
-
-      {/* Footer hint */}
-      <div className="border-t border-bg-border px-4 py-3">
-        <p className="text-[10px] text-text-muted leading-relaxed">
-          <code className="font-mono">data/servers.json</code> — не коммитьте в git
-        </p>
-      </div>
     </aside>
   )
 }

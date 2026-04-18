@@ -1,11 +1,11 @@
 from __future__ import annotations
 
-import asyncio
-import json
-import os
 import uuid
-from pathlib import Path
 
+from sqlalchemy import delete, select
+
+from app.db import session_factory
+from app.models import ServerRow
 from app.server_schemas import (
     ServerListItem,
     StoredServer,
@@ -13,52 +13,30 @@ from app.server_schemas import (
     StoredServerUpdate,
 )
 
-_DATA_DIR = Path(__file__).resolve().parents[2] / "data"
-_FILE = _DATA_DIR / "servers.json"
-_lock = asyncio.Lock()
 
-
-def _ensure_data_dir() -> None:
-    _DATA_DIR.mkdir(parents=True, exist_ok=True)
-
-
-def _chmod_private(path: Path) -> None:
-    try:
-        os.chmod(path, 0o600)
-    except (NotImplementedError, OSError, AttributeError):
-        pass
-
-
-def _read_raw() -> list[dict]:
-    if not _FILE.is_file():
-        return []
-    try:
-        data = json.loads(_FILE.read_text(encoding="utf-8"))
-    except (json.JSONDecodeError, OSError):
-        return []
-    if not isinstance(data, list):
-        return []
-    return data
-
-
-def _write_atomic(servers: list[StoredServer]) -> None:
-    _ensure_data_dir()
-    payload = [s.model_dump(mode="json") for s in servers]
-    raw = json.dumps(payload, ensure_ascii=False, indent=2)
-    tmp = _FILE.with_suffix(".json.tmp")
-    tmp.write_text(raw, encoding="utf-8")
-    _chmod_private(tmp)
-    tmp.replace(_FILE)
-    _chmod_private(_FILE)
+def _row_to_stored(row: ServerRow) -> StoredServer:
+    return StoredServer(
+        id=row.id,
+        name=row.name,
+        host=row.host,
+        port=row.port,
+        username=row.username,
+        auth_mode=row.auth_mode,  # type: ignore[arg-type]
+        private_key=row.private_key,
+        private_key_passphrase=row.private_key_passphrase,
+        password=row.password,
+    )
 
 
 async def list_servers() -> list[ServerListItem]:
-    async with _lock:
-        raw = _read_raw()
+    fac = session_factory()
+    async with fac() as session:
+        result = await session.scalars(select(ServerRow).order_by(ServerRow.name))
+        rows = list(result.all())
     items: list[ServerListItem] = []
-    for row in raw:
+    for row in rows:
         try:
-            s = StoredServer.model_validate(row)
+            s = _row_to_stored(row)
         except Exception:
             continue
         items.append(
@@ -75,16 +53,15 @@ async def list_servers() -> list[ServerListItem]:
 
 
 async def get_server(server_id: str) -> StoredServer | None:
-    async with _lock:
-        raw = _read_raw()
-    for row in raw:
-        if row.get("id") != server_id:
-            continue
+    fac = session_factory()
+    async with fac() as session:
+        row = await session.get(ServerRow, server_id)
+        if row is None:
+            return None
         try:
-            return StoredServer.model_validate(row)
+            return _row_to_stored(row)
         except Exception:
             return None
-    return None
 
 
 async def create_server(body: StoredServerCreate) -> StoredServer:
@@ -100,15 +77,21 @@ async def create_server(body: StoredServerCreate) -> StoredServer:
         private_key_passphrase=body.private_key_passphrase,
         password=(body.password or "").strip() or None,
     )
-    async with _lock:
-        servers = []
-        for row in _read_raw():
-            try:
-                servers.append(StoredServer.model_validate(row))
-            except Exception:
-                continue
-        servers.append(rec)
-        _write_atomic(servers)
+    row = ServerRow(
+        id=rec.id,
+        name=rec.name,
+        host=rec.host,
+        port=rec.port,
+        username=rec.username,
+        auth_mode=rec.auth_mode,
+        private_key=rec.private_key,
+        private_key_passphrase=rec.private_key_passphrase,
+        password=rec.password,
+    )
+    fac = session_factory()
+    async with fac() as session:
+        async with session.begin():
+            session.add(row)
     return rec
 
 
@@ -124,39 +107,26 @@ async def update_server(server_id: str, body: StoredServerUpdate) -> StoredServe
         private_key_passphrase=body.private_key_passphrase,
         password=(body.password or "").strip() or None,
     )
-    async with _lock:
-        servers: list[StoredServer] = []
-        found = False
-        for row in _read_raw():
-            try:
-                s = StoredServer.model_validate(row)
-            except Exception:
-                continue
-            if s.id == server_id:
-                servers.append(rec)
-                found = True
-            else:
-                servers.append(s)
-        if not found:
-            return None
-        _write_atomic(servers)
+    fac = session_factory()
+    async with fac() as session:
+        async with session.begin():
+            row = await session.get(ServerRow, server_id, with_for_update=True)
+            if row is None:
+                return None
+            row.name = rec.name
+            row.host = rec.host
+            row.port = rec.port
+            row.username = rec.username
+            row.auth_mode = rec.auth_mode
+            row.private_key = rec.private_key
+            row.private_key_passphrase = rec.private_key_passphrase
+            row.password = rec.password
     return rec
 
 
 async def delete_server(server_id: str) -> bool:
-    async with _lock:
-        servers: list[StoredServer] = []
-        removed = False
-        for row in _read_raw():
-            try:
-                s = StoredServer.model_validate(row)
-            except Exception:
-                continue
-            if s.id == server_id:
-                removed = True
-                continue
-            servers.append(s)
-        if not removed:
-            return False
-        _write_atomic(servers)
-    return True
+    fac = session_factory()
+    async with fac() as session:
+        async with session.begin():
+            res = await session.execute(delete(ServerRow).where(ServerRow.id == server_id))
+            return res.rowcount > 0

@@ -14,9 +14,10 @@ wheels/
 double-hop-xray.txt
 instr.txt
 
-# Локальные профили SSH (секреты)
+# Старые локальные JSON (до PostgreSQL) и временные файлы
 data/servers.json
 data/metrics_history.json
+data/monitor_settings.json
 data/*.json.tmp
 
 # Docker / панель

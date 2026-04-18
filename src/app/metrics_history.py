@@ -1,55 +1,21 @@
-"""Локальное хранение истории снимков метрик (до 2 суток на сервер)."""
+"""Хранение истории снимков метрик в PostgreSQL (до 2 суток на сервер)."""
 
 from __future__ import annotations
 
-import asyncio
-import json
 import time
-from pathlib import Path
 from typing import Any
 
+from sqlalchemy import delete, select
+
+from app.db import session_factory
+from app.models import MetricsPointRow
 from app.metrics_prom import parse_prometheus_sample_lines
 
-_DATA_DIR = Path(__file__).resolve().parents[2] / "data"
-_FILE = _DATA_DIR / "metrics_history.json"
-_lock = asyncio.Lock()
-
-# 48 часов
 _RETENTION_SEC = 2 * 24 * 3600
-
-
-def _ensure_dir() -> None:
-    _DATA_DIR.mkdir(parents=True, exist_ok=True)
 
 
 def _now() -> float:
     return time.time()
-
-
-def _read_all() -> dict[str, Any]:
-    if not _FILE.is_file():
-        return {"servers": {}}
-    try:
-        data = json.loads(_FILE.read_text(encoding="utf-8"))
-    except (json.JSONDecodeError, OSError):
-        return {"servers": {}}
-    if not isinstance(data, dict):
-        return {"servers": {}}
-    if "servers" not in data or not isinstance(data["servers"], dict):
-        data["servers"] = {}
-    return data
-
-
-def _write_atomic(doc: dict[str, Any]) -> None:
-    _ensure_dir()
-    raw = json.dumps(doc, ensure_ascii=False, indent=2)
-    tmp = _FILE.with_suffix(".json.tmp")
-    tmp.write_text(raw, encoding="utf-8")
-    tmp.replace(_FILE)
-
-
-def _prune_server_points(points: list[dict[str, Any]], cutoff: float) -> list[dict[str, Any]]:
-    return [p for p in points if isinstance(p, dict) and float(p.get("t", 0)) >= cutoff]
 
 
 async def append_snapshot(server_id: str, raw_metrics: str) -> dict[str, Any]:
@@ -57,39 +23,52 @@ async def append_snapshot(server_id: str, raw_metrics: str) -> dict[str, Any]:
     parsed_full = parse_prometheus_sample_lines(raw_metrics)
     t = _now()
     cutoff = t - _RETENTION_SEC
-    async with _lock:
-        doc = _read_all()
-        servers: dict[str, list] = doc.setdefault("servers", {})
-        lst = servers.get(server_id)
-        if not isinstance(lst, list):
-            lst = []
-        lst.append({"t": t, "m": parsed_full})
-        lst = _prune_server_points(lst, cutoff)
-        servers[server_id] = lst
-        _write_atomic(doc)
+    fac = session_factory()
+    async with fac() as session:
+        async with session.begin():
+            session.add(MetricsPointRow(server_id=server_id, t=t, m=parsed_full))
+            await session.execute(
+                delete(MetricsPointRow).where(
+                    MetricsPointRow.server_id == server_id,
+                    MetricsPointRow.t < cutoff,
+                )
+            )
     return {"t": t, "m": parsed_full, "retention_hours": 48}
 
 
 async def list_history(server_id: str, hours: float | None = None) -> list[dict[str, Any]]:
     """Возвращает точки за удерживаемый период (до 48 ч). Если hours задан — только за последние N часов."""
-    async with _lock:
-        doc = _read_all()
-        servers = doc.setdefault("servers", {})
-        lst = servers.get(server_id)
-        if not isinstance(lst, list):
-            return []
-        cutoff = _now() - _RETENTION_SEC
-        pruned = _prune_server_points(lst, cutoff)
-        if len(pruned) != len(lst):
-            servers[server_id] = pruned
-            _write_atomic(doc)
-        if hours is not None:
-            try:
-                h = float(hours)
-            except (TypeError, ValueError):
-                h = 0.0
-            if h > 0:
-                span = min(h * 3600.0, float(_RETENTION_SEC))
-                tmin = _now() - span
-                pruned = [p for p in pruned if isinstance(p, dict) and float(p.get("t", 0)) >= tmin]
-        return pruned
+    now = _now()
+    cutoff = now - _RETENTION_SEC
+    fac = session_factory()
+    async with fac() as session:
+        async with session.begin():
+            await session.execute(
+                delete(MetricsPointRow).where(
+                    MetricsPointRow.server_id == server_id,
+                    MetricsPointRow.t < cutoff,
+                )
+            )
+            result = await session.execute(
+                select(MetricsPointRow)
+                .where(
+                    MetricsPointRow.server_id == server_id,
+                    MetricsPointRow.t >= cutoff,
+                )
+                .order_by(MetricsPointRow.t)
+            )
+            rows = result.scalars().all()
+
+    pruned: list[dict[str, Any]] = [
+        {"t": float(row.t), "m": dict(row.m) if row.m is not None else {}} for row in rows
+    ]
+    if hours is not None:
+        try:
+            h = float(hours)
+        except (TypeError, ValueError):
+            h = 0.0
+        if h > 0:
+            span = min(h * 3600.0, float(_RETENTION_SEC))
+            tmin = _now() - span
+            pruned = [p for p in pruned if isinstance(p, dict) and float(p.get("t", 0)) >= tmin]
+    return pruned

@@ -22,12 +22,15 @@ COPY static ./static
 RUN uv sync --frozen --no-cache --no-dev \
     && chown -R panel:panel /app
 
-USER panel
+COPY deploy/docker-entrypoint.sh /docker-entrypoint.sh
+RUN sed -i 's/\r$//' /docker-entrypoint.sh \
+    && chmod 0755 /docker-entrypoint.sh
+
 ENV PATH="/app/.venv/bin:$PATH"
 
 EXPOSE 8765
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
-    CMD python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8765/health', timeout=3)"
+    CMD /app/.venv/bin/python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8765/health', timeout=3)"
 
-CMD ["sh", "-c", "exec python -m uvicorn app.main:app --host \"${UVICORN_HOST}\" --port \"${UVICORN_PORT}\""]
+ENTRYPOINT ["/docker-entrypoint.sh"]

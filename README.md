@@ -31,3 +31,5 @@ uv run python -m uvicorn app.main:app --host 127.0.0.1 --port 8765
 bash deploy/init_docker_secrets.sh '<пароль_панели>'
 docker compose up -d --build
 ```
+
+Секреты в `/run/secrets/` монтируются как **root:root**; приложение работает от пользователя **panel**. Скрипт `deploy/docker-entrypoint.sh` копирует их в `/tmp` с правами для uid 1000 и только потом запускает uvicorn (в compose добавлены `SETUID`/`SETGID` из‑за `cap_drop: ALL`).

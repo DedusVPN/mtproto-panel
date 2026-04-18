@@ -7,7 +7,9 @@ ENV UV_COMPILE_BYTECODE=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     UVICORN_HOST=0.0.0.0 \
-    UVICORN_PORT=8765
+    UVICORN_PORT=8765 \
+    PANEL_COOKIE_SECURE=false \
+    PANEL_TRUST_FORWARDED_PROTO=false
 
 RUN useradd --system --create-home --uid 1000 --shell /usr/sbin/nologin panel \
     && mkdir -p /app/data \

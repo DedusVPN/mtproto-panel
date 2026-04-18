@@ -76,8 +76,8 @@ async def amain(base: str) -> list[str]:
     s0 = get_panel_auth_settings()
     if urlparse(base).scheme == "http" and s0.auth_active() and s0.cookie_secure:
         errs.append(
-            "По http:// cookie с флагом Secure не отправляется клиентом. "
-            "Запустите uvicorn с PANEL_COOKIE_SECURE=false или проверяйте по https://."
+            "По http:// при PANEL_COOKIE_SECURE=true браузер не отправляет cookie. "
+            "Для доступа по IP без SSL в .env должно быть PANEL_COOKIE_SECURE=false (см. .env.example)."
         )
         return errs
 

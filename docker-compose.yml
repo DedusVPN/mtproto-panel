@@ -20,8 +20,9 @@ services:
       PANEL_AUTH_ENABLED: "true"
       PANEL_JWT_SECRET_FILE: /run/secrets/panel_jwt_secret
       PANEL_ADMIN_PASSWORD_HASH_FILE: /run/secrets/panel_admin_password_hash
-      PANEL_COOKIE_SECURE: "true"
-      PANEL_TRUST_FORWARDED_PROTO: "true"
+      # Доступ по IP и HTTP без TLS — иначе cookie сессии не работают
+      PANEL_COOKIE_SECURE: "false"
+      PANEL_TRUST_FORWARDED_PROTO: "false"
       PANEL_EXPOSE_OPENAPI: "false"
       UVICORN_HOST: "0.0.0.0"
       UVICORN_PORT: "8765"
@@ -31,7 +32,7 @@ services:
     volumes:
       - panel_data:/app/data
     ports:
-      - "127.0.0.1:8765:8765"
+      - "8765:8765"
 
 secrets:
   panel_jwt_secret:

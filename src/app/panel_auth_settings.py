@@ -57,7 +57,7 @@ class PanelAuthSettings(BaseSettings):
     cookie_name: str = Field(default="telemt_panel_at", min_length=1, max_length=64)
     cookie_secure: bool = Field(
         default=False,
-        description="Флаг Secure у cookie; за прокси с TLS включите и trust_forwarded_proto.",
+        description="Secure у cookie: для http://IP:порт оставьте false; true только за HTTPS (прокси с X-Forwarded-Proto).",
     )
     cookie_samesite: str = Field(default="lax", description="lax | strict | none")
 

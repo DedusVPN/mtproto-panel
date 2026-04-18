@@ -8,8 +8,11 @@
 
 ```bash
 uv sync
+# Локально по HTTP: при PANEL_COOKIE_SECURE=true в .env браузер/httpx не сохранят cookie — для проверки входа выставьте false или используйте HTTPS.
 uv run python -m uvicorn app.main:app --host 127.0.0.1 --port 8765
 ```
+
+Проверка auth (после запуска панели на том же порту): `uv run python scripts/verify_auth_integration.py --base http://127.0.0.1:8765`
 
 Скрипты-обёртки: `run_panel.sh`, `run_panel.cmd`.
 

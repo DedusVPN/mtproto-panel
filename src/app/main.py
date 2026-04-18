@@ -17,7 +17,7 @@ from app.deploy import run_deploy, ssh_connect_test, stream_telemt_journal
 from app.remote_telemt_config import fetch_telemt_config_from_server
 from app.presets import list_presets
 from app.metrics_history import append_snapshot, list_history
-from app.metrics_prom import build_metric_rows, build_stats_cards, parse_prometheus_sample_lines
+from app.metrics_prom import build_stats_cards, parse_prometheus_sample_lines
 from app.metrics_remote import fetch_remote_prometheus_metrics
 from app.schemas import DeployRequest, JournalStreamRequest, MetricsSnapshotRequest, SSHTestRequest
 from app.server_schemas import StoredServerCreate, StoredServerUpdate
@@ -28,9 +28,6 @@ from app.panel_auth_settings import get_panel_auth_settings
 from app.ws_auth import require_panel_ws_or_close
 
 STATIC_DIR = Path(__file__).resolve().parents[2] / "static"
-
-# Лимит отдачи сырого /metrics в JSON (защита памяти при очень больших ответах).
-_METRICS_RAW_MAX_CHARS = 2_000_000
 
 
 @asynccontextmanager
@@ -130,10 +127,8 @@ async def api_metrics_snapshot(body: MetricsSnapshotRequest):
     rec = await append_snapshot(body.server_id, raw)
     parsed = parse_prometheus_sample_lines(raw)
     cards = build_stats_cards(parsed)
-    rows = build_metric_rows(raw, parsed)
     hist = await list_history(body.server_id)
-    raw_trunc = len(raw) > _METRICS_RAW_MAX_CHARS
-    raw_out = raw[:_METRICS_RAW_MAX_CHARS] if raw_trunc else raw
+    metrics_json = {k: float(v) for k, v in parsed.items()}
     return {
         "ok": True,
         "message": msg,
@@ -141,10 +136,7 @@ async def api_metrics_snapshot(body: MetricsSnapshotRequest):
         "cards": cards,
         "points_total": len(hist),
         "metrics_series": len(rec["m"]),
-        "metrics_rows": rows,
-        "raw_metrics": raw_out,
-        "raw_metrics_truncated": raw_trunc,
-        "raw_metrics_bytes": len(raw.encode("utf-8")),
+        "metrics": metrics_json,
     }
 
 
@@ -153,7 +145,16 @@ async def api_metrics_history(server_id: str):
     if not server_id.strip():
         raise HTTPException(status_code=400, detail="server_id обязателен")
     pts = await list_history(server_id.strip())
-    return {"points": [{"t": p["t"], "m": p.get("m") or {}} for p in pts]}
+    last_cards: dict[str, object] | None = None
+    if pts:
+        m = pts[-1].get("m") or {}
+        if isinstance(m, dict) and m:
+            parsed = {str(k): float(v) for k, v in m.items() if isinstance(v, (int, float))}
+            last_cards = build_stats_cards(parsed)
+    return {
+        "points": [{"t": p["t"], "m": p.get("m") or {}} for p in pts],
+        "last_cards": last_cards,
+    }
 
 
 @app.post("/api/fetch-remote-telemt")

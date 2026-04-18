@@ -29,9 +29,8 @@
 
   let statsPollTimer = null;
   const chartHandles = {};
-  let cachedMetricsRows = [];
-  let cachedMetricsRaw = "";
-  let cachedMetricsRawTruncated = false;
+  /** Последний server_id, для которого созданы экземпляры Chart (смена сервера — пересоздание). */
+  let statsChartsBoundSid = null;
 
   let journalWs = null;
   let presetsCache = [];
@@ -859,213 +858,193 @@
     return Number.isInteger(n) ? n.toLocaleString("ru-RU") : n.toLocaleString("ru-RU", { maximumFractionDigits: 3 });
   }
 
-  function metricRowsFromMap(m) {
-    if (!m || typeof m !== "object") return [];
-    return Object.keys(m)
-      .sort()
-      .map((key) => ({
-        key,
-        base: key.indexOf("{") >= 0 ? key.split("{", 1)[0] : key,
-        value: m[key],
-        help: null,
-        type: null,
-      }));
+  const DASH_SECTIONS = [
+    {
+      title: "Сборка и телеметрия",
+      items: [
+        { label: "Версия", fromCards: "version" },
+        { label: "Uptime, с", key: "telemt_uptime_seconds" },
+        { label: "Telemetry core", key: "telemt_telemetry_core_enabled" },
+        { label: "Telemetry user", key: "telemt_telemetry_user_enabled" },
+        { label: "ME telemetry · normal", key: 'telemt_telemetry_me_level{level="normal"}' },
+        { label: "ME telemetry · debug", key: 'telemt_telemetry_me_level{level="debug"}' },
+        { label: "ME telemetry · silent", key: 'telemt_telemetry_me_level{level="silent"}' },
+        { label: "User series suppressed", key: "telemt_telemetry_user_series_suppressed" },
+      ],
+    },
+    {
+      title: "Соединения и рукопожатие",
+      items: [
+        { label: "Принято всего", key: "telemt_connections_total" },
+        { label: "Плохие / отклонённые", key: "telemt_connections_bad_total" },
+        { label: "Таймауты рукопожатия", key: "telemt_handshake_timeouts_total" },
+        { label: "Permit timeout (drop)", key: "telemt_accept_permit_timeout_total" },
+      ],
+    },
+    {
+      title: "Авторизация",
+      items: [
+        { label: "Тяжёлые проверки", key: "telemt_auth_expensive_checks_total" },
+        { label: "Исчерпан бюджет auth", key: "telemt_auth_budget_exhausted_total" },
+      ],
+    },
+    {
+      title: "Upstream",
+      items: [
+        { label: "Попытки connect", key: "telemt_upstream_connect_attempt_total" },
+        { label: "Успешные циклы", key: "telemt_upstream_connect_success_total" },
+        { label: "Ошибки циклов", key: "telemt_upstream_connect_fail_total" },
+        { label: "Failfast hard errors", key: "telemt_upstream_connect_failfast_hard_error_total" },
+      ],
+    },
+    {
+      title: "Пул буферов",
+      items: [
+        { label: "Буферы · pooled", key: 'telemt_buffer_pool_buffers_total{kind="pooled"}' },
+        { label: "Буферы · allocated", key: 'telemt_buffer_pool_buffers_total{kind="allocated"}' },
+        { label: "Буферы · in_use", key: 'telemt_buffer_pool_buffers_total{kind="in_use"}' },
+      ],
+    },
+    {
+      title: "ME writers и пол",
+      items: [
+        { label: "Writers active", key: "telemt_me_writers_active_current" },
+        { label: "Writers warm", key: "telemt_me_writers_warm_current" },
+        { label: "Adaptive target writers", key: "telemt_me_adaptive_floor_target_writers_total" },
+        { label: "Floor cap block", key: "telemt_me_floor_cap_block_total" },
+        { label: "Floor mode · adaptive", key: 'telemt_me_floor_mode{mode="adaptive"}' },
+        { label: "Floor mode · static", key: 'telemt_me_floor_mode{mode="static"}' },
+      ],
+    },
+    {
+      title: "ME keepalive / RPC",
+      items: [
+        { label: "Keepalive sent", key: "telemt_me_keepalive_sent_total" },
+        { label: "Keepalive failed", key: "telemt_me_keepalive_failed_total" },
+        { label: "Keepalive pong", key: "telemt_me_keepalive_pong_total" },
+        { label: "Keepalive timeout", key: "telemt_me_keepalive_timeout_total" },
+      ],
+    },
+    {
+      title: "ME reconnect",
+      items: [
+        { label: "Reconnect attempts", key: "telemt_me_reconnect_attempts_total" },
+        { label: "Reconnect success", key: "telemt_me_reconnect_success_total" },
+        { label: "Handshake reject", key: "telemt_me_handshake_reject_total" },
+      ],
+    },
+    {
+      title: "Реле (middle)",
+      items: [
+        { label: "Idle soft mark", key: "telemt_relay_idle_soft_mark_total" },
+        { label: "Idle hard close", key: "telemt_relay_idle_hard_close_total" },
+        { label: "Pressure evict", key: "telemt_relay_pressure_evict_total" },
+        { label: "Protocol desync close", key: "telemt_relay_protocol_desync_close_total" },
+      ],
+    },
+    {
+      title: "Крипто / desync",
+      items: [
+        { label: "Desync total", key: "telemt_desync_total" },
+        { label: "Secure padding invalid", key: "telemt_secure_padding_invalid_total" },
+        { label: "Desync full logged", key: "telemt_desync_full_logged_total" },
+        { label: "Desync suppressed", key: "telemt_desync_suppressed_total" },
+      ],
+    },
+    {
+      title: "DC → клиент (агрегаты)",
+      items: [
+        { label: "Батчи flush", key: "telemt_me_d2c_batches_total" },
+        { label: "Кадры в батчах", key: "telemt_me_d2c_batch_frames_total" },
+        { label: "Payload bytes", key: "telemt_me_d2c_payload_bytes_total" },
+        { label: "Data frames", key: "telemt_me_d2c_data_frames_total" },
+        { label: "Ack frames", key: "telemt_me_d2c_ack_frames_total" },
+      ],
+    },
+    {
+      title: "Conntrack",
+      items: [
+        { label: "Queue depth", key: "telemt_conntrack_event_queue_depth" },
+        { label: "Delete · attempt", key: 'telemt_conntrack_delete_total{result="attempt"}' },
+        { label: "Delete · success", key: 'telemt_conntrack_delete_total{result="success"}' },
+        { label: "Delete · error", key: 'telemt_conntrack_delete_total{result="error"}' },
+      ],
+    },
+    {
+      title: "IP tracker",
+      items: [
+        { label: "Users · active", key: 'telemt_ip_tracker_users{scope="active"}' },
+        { label: "Users · recent", key: 'telemt_ip_tracker_users{scope="recent"}' },
+        { label: "Entries · active", key: 'telemt_ip_tracker_entries{scope="active"}' },
+        { label: "Entries · recent", key: 'telemt_ip_tracker_entries{scope="recent"}' },
+        { label: "Cleanup queue", key: "telemt_ip_tracker_cleanup_queue_len" },
+      ],
+    },
+  ];
+
+  function dashCardValue(cards, m, it) {
+    if (it.fromCards && cards && cards[it.fromCards] != null) return cards[it.fromCards];
+    if (it.key && m && m[it.key] != null) return m[it.key];
+    return null;
   }
 
-  function filterMetricRows(rows, q) {
-    const s = (q || "").trim().toLowerCase();
-    if (!s) return rows.slice();
-    return rows.filter((r) => {
-      const hay = (
-        r.key +
-        "\n" +
-        (r.help || "") +
-        "\n" +
-        (r.type || "") +
-        "\n" +
-        String(r.value)
-      ).toLowerCase();
-      return hay.indexOf(s) !== -1;
-    });
+  function fmtDashCell(v) {
+    if (v == null) return "—";
+    if (typeof v === "string") return escapeAttr(v);
+    return escapeAttr(fmtNum(v));
   }
 
-  function updateRawMetricsPre() {
-    const pre = $("stats-raw-pre");
-    const hint = $("stats-raw-hint");
-    if (pre) pre.textContent = cachedMetricsRaw || "";
-    if (hint) {
-      hint.textContent = cachedMetricsRaw
-        ? cachedMetricsRawTruncated
-          ? "Текст усечён при передаче с API панели (защитный лимит). На сервере Telemt отдаётся полный ответ."
-          : "Полный текст последнего успешного снимка (" + (cachedMetricsRaw.length || 0).toLocaleString("ru-RU") + " символов)."
-        : "Сырой Prometheus-текст появится после успешного снимка.";
-    }
-  }
-
-  function renderMetricsTableDom() {
-    const wrap = $("stats-metrics-wrap");
-    const countEl = $("stats-metrics-count");
-    if (!wrap) return;
-    const q = ($("stats-metrics-filter") && $("stats-metrics-filter").value) || "";
-    const grouped = $("stats-metrics-grouped") && $("stats-metrics-grouped").checked;
-    const rows = filterMetricRows(cachedMetricsRows, q);
-    if (countEl) {
-      countEl.textContent = rows.length
-        ? rows.length.toLocaleString("ru-RU") + " серий" + (cachedMetricsRows.length ? " (всего " + cachedMetricsRows.length + ")" : "")
-        : cachedMetricsRows.length
-          ? "0 по фильтру · всего " + cachedMetricsRows.length
-          : "Нет данных";
-    }
-    wrap.textContent = "";
-    if (!rows.length) {
-      const p = document.createElement("p");
-      p.className = "hint";
-      p.style.margin = "0.75rem";
-      p.textContent = "Нет строк. Снимите метрики или ослабьте фильтр.";
-      wrap.appendChild(p);
-      return;
-    }
-
-    function appendTableForRows(target, rowList) {
-      const table = document.createElement("table");
-      table.className = "stats-metrics-table";
-      const thead = document.createElement("thead");
-      const trh = document.createElement("tr");
-      ["#", "Имя (ключ)", "TYPE", "Значение", "HELP"].forEach((h) => {
-        const th = document.createElement("th");
-        th.textContent = h;
-        trh.appendChild(th);
-      });
-      thead.appendChild(trh);
-      const tbody = document.createElement("tbody");
-      rowList.forEach((r, i) => {
-        const tr = document.createElement("tr");
-        const cells = [String(i + 1), r.key, r.type || "—", fmtNum(r.value), r.help || "—"];
-        cells.forEach((cell, ci) => {
-          const td = document.createElement("td");
-          td.textContent = cell;
-          if (ci === 1 || ci === 4) td.className = "mono td-wrap";
-          if (ci === 3) td.className = "mono td-num";
-          tr.appendChild(td);
-        });
-        tbody.appendChild(tr);
-      });
-      table.appendChild(thead);
-      table.appendChild(tbody);
-      target.appendChild(table);
-    }
-
-    if (!grouped) {
-      appendTableForRows(wrap, rows);
-      return;
-    }
-
-    const byBase = new Map();
-    rows.forEach((r) => {
-      if (!byBase.has(r.base)) byBase.set(r.base, []);
-      byBase.get(r.base).push(r);
-    });
-    const bases = Array.from(byBase.keys()).sort();
-    bases.forEach((base) => {
-      const sub = byBase
-        .get(base)
-        .slice()
-        .sort((a, b) => a.key.localeCompare(b.key));
-      const det = document.createElement("details");
-      det.className = "metric-group";
-      det.open = true;
-      const sum = document.createElement("summary");
-      sum.className = "metric-group-summary";
-      sum.textContent = base + " · " + sub.length + " ряд(ов)";
-      det.appendChild(sum);
-      const help0 = sub[0] && sub[0].help;
-      if (help0) {
-        const hp = document.createElement("p");
-        hp.className = "hint metric-group-help";
-        hp.textContent = help0;
-        det.appendChild(hp);
-      }
-      appendTableForRows(det, sub);
-      wrap.appendChild(det);
-    });
-  }
-
-  function applyMetricsSnapshotPayload(j) {
-    cachedMetricsRows = Array.isArray(j.metrics_rows) ? j.metrics_rows : [];
-    cachedMetricsRaw = typeof j.raw_metrics === "string" ? j.raw_metrics : "";
-    cachedMetricsRawTruncated = !!j.raw_metrics_truncated;
-    updateRawMetricsPre();
-    renderMetricsTableDom();
-  }
-
-  async function loadMetricsTableFromHistory() {
-    const sid = selectedServerId;
-    if (!sid) {
-      cachedMetricsRows = [];
-      cachedMetricsRaw = "";
-      cachedMetricsRawTruncated = false;
-      updateRawMetricsPre();
-      renderMetricsTableDom();
-      return;
-    }
-    const r = await authFetch("/api/metrics/history?server_id=" + encodeURIComponent(sid));
-    if (!r.ok) return;
-    const data = await r.json();
-    const pts = Array.isArray(data.points) ? data.points : [];
-    const last = pts.length ? pts[pts.length - 1] : null;
-    const m = last && last.m ? last.m : {};
-    cachedMetricsRows = metricRowsFromMap(m);
-    cachedMetricsRaw = "";
-    cachedMetricsRawTruncated = false;
-    updateRawMetricsPre();
-    renderMetricsTableDom();
-  }
-
-  function renderStatsCards(cards) {
-    const host = $("stats-cards");
+  function renderStatsDashboard(cards, m) {
+    const host = $("stats-dash");
     if (!host) return;
-    if (!cards) {
-      host.innerHTML = '<div class="hint">Нет данных снимка. Нажмите «Снять снимок».</div>';
+    if (!m || typeof m !== "object" || !Object.keys(m).length) {
+      host.innerHTML = '<p class="hint stats-dash-empty">Нет данных метрик. Снимите снимок или дождитесь авто-снимка.</p>';
       return;
     }
-    const uCur = cards.per_user_connections_current || {};
-    const uNames = Object.keys(uCur);
-    const userLine =
-      uNames.length === 0
-        ? ""
-        : "<div class=\"stats-card\"><div class=\"stats-card-k\">Сессии (user)</div><div class=\"stats-card-v\">" +
-          uNames.map((u) => escapeAttr(u) + ": " + fmtNum(uCur[u])).join("<br/>") +
-          "</div></div>";
-    host.innerHTML =
-      '<div class="stats-card"><div class="stats-card-k">Версия</div><div class="stats-card-v">' +
-      escapeAttr(String(cards.version || "—")) +
-      "</div></div>" +
-      '<div class="stats-card"><div class="stats-card-k">Uptime</div><div class="stats-card-v">' +
-      fmtNum(cards.uptime_seconds) +
-      " с</div></div>" +
-      '<div class="stats-card"><div class="stats-card-k">Соединения всего</div><div class="stats-card-v">' +
-      fmtNum(cards.connections_total) +
-      "</div></div>" +
-      '<div class="stats-card"><div class="stats-card-k">Плохие</div><div class="stats-card-v">' +
-      fmtNum(cards.connections_bad_total) +
-      "</div></div>" +
-      '<div class="stats-card"><div class="stats-card-k">Таймауты рукопожатия</div><div class="stats-card-v">' +
-      fmtNum(cards.handshake_timeouts_total) +
-      "</div></div>" +
-      '<div class="stats-card"><div class="stats-card-k">Upstream OK / fail</div><div class="stats-card-v">' +
-      fmtNum(cards.upstream_connect_success) +
-      " / " +
-      fmtNum(cards.upstream_connect_fail) +
-      "</div></div>" +
-      '<div class="stats-card"><div class="stats-card-k">ME writers</div><div class="stats-card-v">' +
-      fmtNum(cards.writers_active) +
-      " / warm " +
-      fmtNum(cards.writers_warm) +
-      "</div></div>" +
-      '<div class="stats-card"><div class="stats-card-k">Desync</div><div class="stats-card-v">' +
-      fmtNum(cards.desync_total) +
-      "</div></div>" +
-      userLine;
+    const parts = [];
+    DASH_SECTIONS.forEach((sec) => {
+      const cardsHtml = sec.items
+        .map((it) => {
+          const v = dashCardValue(cards, m, it);
+          return (
+            '<div class="stats-card"><div class="stats-card-k">' +
+            escapeAttr(it.label) +
+            '</div><div class="stats-card-v">' +
+            fmtDashCell(v) +
+            "</div></div>"
+          );
+        })
+        .join("");
+      parts.push(
+        '<section class="stats-section panel"><div class="panel-head"><h2>' +
+          escapeAttr(sec.title) +
+          '</h2></div><div class="stats-cards">' +
+          cardsHtml +
+          "</div></section>"
+      );
+    });
+    const userKeys = Object.keys(m)
+      .filter((k) => k.startsWith("telemt_user_"))
+      .sort();
+    if (userKeys.length) {
+      const rows = userKeys
+        .map((k) => {
+          return (
+            '<div class="stats-card stats-card-wide"><div class="stats-card-k mono">' +
+            escapeAttr(k) +
+            '</div><div class="stats-card-v">' +
+            fmtDashCell(m[k]) +
+            "</div></div>"
+          );
+        })
+        .join("");
+      parts.push(
+        '<section class="stats-section panel"><div class="panel-head"><h2>Пользователи (per-user)</h2></div><div class="stats-cards stats-cards-user">' +
+          rows +
+          "</div></section>"
+      );
+    }
+    host.innerHTML = parts.join("");
   }
 
   function destroyStatCharts() {
@@ -1107,71 +1086,203 @@
     return sorted[0] || null;
   }
 
-  function makeLineChart(canvasId, label, dataPoints, borderColor, fillColor) {
-    const canvas = $(canvasId);
-    if (!canvas || typeof Chart === "undefined") return;
-    if (chartHandles[canvasId]) {
-      chartHandles[canvasId].destroy();
-      delete chartHandles[canvasId];
-    }
-    chartHandles[canvasId] = new Chart(canvas, {
-      type: "line",
-      data: {
-        datasets: [
-          {
-            label,
-            data: dataPoints,
-            borderColor,
-            backgroundColor: fillColor,
-            fill: true,
-            tension: 0.25,
-            pointRadius: 0,
-          },
-        ],
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        scales: {
-          x: {
-            type: "linear",
-            title: { display: true, text: "Время", color: "#8b93a8" },
-            ticks: { color: "#8b93a8", maxTicksLimit: 6 },
-            grid: { color: "rgba(42,49,66,0.5)" },
-          },
-          y: {
-            beginAtZero: true,
-            ticks: { color: "#8b93a8" },
-            grid: { color: "rgba(42,49,66,0.5)" },
-          },
+  function chartOpts() {
+    return {
+      responsive: true,
+      maintainAspectRatio: false,
+      animation: false,
+      transitions: { active: { animation: { duration: 0 } } },
+      scales: {
+        x: {
+          type: "linear",
+          title: { display: true, text: "Время", color: "#8b93a8" },
+          ticks: { color: "#8b93a8", maxTicksLimit: 8 },
+          grid: { color: "rgba(42,49,66,0.45)" },
         },
-        plugins: { legend: { labels: { color: "#e8ebf0" } } },
+        y: {
+          beginAtZero: true,
+          ticks: { color: "#8b93a8" },
+          grid: { color: "rgba(42,49,66,0.45)" },
+        },
       },
-    });
+      plugins: { legend: { labels: { color: "#e8ebf0" } } },
+    };
   }
 
-  async function renderStatsChartsFromHistory() {
+  function updateOrCreateLineChart(canvasId, label, dataPoints, borderColor, fillColor) {
+    const canvas = $(canvasId);
+    if (!canvas || typeof Chart === "undefined") return;
+    const data = (dataPoints || []).slice();
+    let ch = chartHandles[canvasId];
+    if (!ch) {
+      ch = new Chart(canvas, {
+        type: "line",
+        data: {
+          datasets: [
+            {
+              label,
+              data,
+              borderColor,
+              backgroundColor: fillColor,
+              fill: true,
+              tension: 0.25,
+              pointRadius: 0,
+            },
+          ],
+        },
+        options: chartOpts(),
+      });
+      chartHandles[canvasId] = ch;
+    } else {
+      ch.data.datasets[0].label = label;
+      ch.data.datasets[0].data = data;
+      ch.data.datasets[0].borderColor = borderColor;
+      ch.data.datasets[0].backgroundColor = fillColor;
+      ch.update("none");
+    }
+  }
+
+  function updateOrCreateMultiLineChart(canvasId, datasetSpecs) {
+    const canvas = $(canvasId);
+    if (!canvas || typeof Chart === "undefined") return;
+    const datasets = (datasetSpecs || []).map((s) => ({
+      label: s.label,
+      data: (s.data || []).slice(),
+      borderColor: s.borderColor,
+      backgroundColor: s.fillColor || "transparent",
+      fill: !!s.fill,
+      tension: 0.25,
+      pointRadius: 0,
+    }));
+    let ch = chartHandles[canvasId];
+    if (!ch) {
+      ch = new Chart(canvas, {
+        type: "line",
+        data: { datasets },
+        options: chartOpts(),
+      });
+      chartHandles[canvasId] = ch;
+    } else {
+      ch.data.datasets = datasets;
+      ch.update("none");
+    }
+  }
+
+  function updateStatsHistoryCharts(pts) {
+    if (typeof Chart === "undefined") return;
+    if (!selectedServerId) {
+      destroyStatCharts();
+      statsChartsBoundSid = null;
+      return;
+    }
+    if (statsChartsBoundSid !== selectedServerId) {
+      destroyStatCharts();
+      statsChartsBoundSid = selectedServerId;
+    }
+
+    const uk = firstMetricKey(pts, "telemt_user_connections_current{");
+    const usr = uk ? seriesGauge(pts, uk) : [];
+    const payDer = seriesDerivative(pts, "telemt_me_d2c_payload_bytes_total").map((p) => ({
+      x: p.x,
+      y: p.y / 1e6,
+    }));
+
+    updateOrCreateLineChart(
+      "chart-conn-rate",
+      "/ с",
+      seriesDerivative(pts, "telemt_connections_total"),
+      "rgb(99,102,241)",
+      "rgba(99,102,241,0.15)"
+    );
+    updateOrCreateLineChart(
+      "chart-handshake-rate",
+      "/ с",
+      seriesDerivative(pts, "telemt_handshake_timeouts_total"),
+      "rgb(251,191,36)",
+      "rgba(251,191,36,0.12)"
+    );
+    updateOrCreateLineChart(
+      "chart-auth-rate",
+      "/ с",
+      seriesDerivative(pts, "telemt_auth_expensive_checks_total"),
+      "rgb(167,139,250)",
+      "rgba(167,139,250,0.12)"
+    );
+    updateOrCreateMultiLineChart("chart-upstream", [
+      {
+        label: "success / с",
+        data: seriesDerivative(pts, "telemt_upstream_connect_success_total"),
+        borderColor: "rgb(52,211,153)",
+        fillColor: "rgba(52,211,153,0.08)",
+        fill: true,
+      },
+      {
+        label: "fail / с",
+        data: seriesDerivative(pts, "telemt_upstream_connect_fail_total"),
+        borderColor: "rgb(244,63,94)",
+        fillColor: "rgba(244,63,94,0.08)",
+        fill: true,
+      },
+    ]);
+    updateOrCreateLineChart(
+      "chart-bad",
+      "накопительно",
+      seriesGauge(pts, "telemt_connections_bad_total"),
+      "rgb(244,63,94)",
+      "rgba(244,63,94,0.12)"
+    );
+    updateOrCreateLineChart(
+      "chart-writers",
+      "active",
+      seriesGauge(pts, "telemt_me_writers_active_current"),
+      "rgb(34,211,153)",
+      "rgba(34,211,153,0.12)"
+    );
+    updateOrCreateLineChart(
+      "chart-me-reconn",
+      "/ с",
+      seriesDerivative(pts, "telemt_me_reconnect_attempts_total"),
+      "rgb(96,165,250)",
+      "rgba(96,165,250,0.12)"
+    );
+    updateOrCreateLineChart(
+      "chart-payload-mbs",
+      "МБ/с",
+      payDer,
+      "rgb(34,197,235)",
+      "rgba(34,197,235,0.12)"
+    );
+    updateOrCreateLineChart(
+      "chart-user-cur",
+      uk || "sessions",
+      usr,
+      "rgb(192,132,252)",
+      "rgba(192,132,252,0.12)"
+    );
+    updateOrCreateLineChart(
+      "chart-desync",
+      "накопительно",
+      seriesGauge(pts, "telemt_desync_total"),
+      "rgb(248,113,113)",
+      "rgba(248,113,113,0.1)"
+    );
+  }
+
+  async function syncStatsFromHistory() {
     const sid = selectedServerId;
-    if (!sid || typeof Chart === "undefined") return;
+    if (!sid) {
+      renderStatsDashboard(null, {});
+      updateStatsHistoryCharts([]);
+      return;
+    }
     const r = await authFetch("/api/metrics/history?server_id=" + encodeURIComponent(sid));
     if (!r.ok) return;
     const data = await r.json();
     const pts = Array.isArray(data.points) ? data.points : [];
-    destroyStatCharts();
-    if (pts.length < 1) return;
-    const connDer = seriesDerivative(pts, "telemt_connections_total");
-    const bad = seriesGauge(pts, "telemt_connections_bad_total");
-    const wr = seriesGauge(pts, "telemt_me_writers_active_current");
-    const uk = firstMetricKey(pts, "telemt_user_connections_current{");
-    const usr = uk ? seriesGauge(pts, uk) : [];
-    if (connDer.length)
-      makeLineChart("chart-conn-rate", "соединений / с", connDer, "rgb(99,102,241)", "rgba(99,102,241,0.15)");
-    if (bad.length)
-      makeLineChart("chart-bad", "telemt_connections_bad_total", bad, "rgb(244,63,94)", "rgba(244,63,94,0.12)");
-    if (wr.length)
-      makeLineChart("chart-writers", "active writers", wr, "rgb(34,211,153)", "rgba(34,211,153,0.12)");
-    if (usr.length)
-      makeLineChart("chart-user-cur", uk || "user sessions", usr, "rgb(34,197,235)", "rgba(34,197,235,0.12)");
+    const last = pts.length ? pts[pts.length - 1] : null;
+    const m = last && last.m ? last.m : {};
+    renderStatsDashboard(data.last_cards || null, m);
+    updateStatsHistoryCharts(pts);
   }
 
   async function takeMetricsSnapshot(showAlert) {
@@ -1181,12 +1292,8 @@
     if (!sid) {
       if (el) el.textContent = "Выберите сервер в боковой панели.";
       destroyStatCharts();
-      renderStatsCards(null);
-      cachedMetricsRows = [];
-      cachedMetricsRaw = "";
-      cachedMetricsRawTruncated = false;
-      updateRawMetricsPre();
-      renderMetricsTableDom();
+      statsChartsBoundSid = null;
+      renderStatsDashboard(null, {});
       return false;
     }
     try {
@@ -1197,39 +1304,38 @@
       if (!j.ok) {
         if (el) el.textContent = j.message || "Ошибка снимка";
         if (showAlert) alert(j.message || "Ошибка снимка");
-        await loadMetricsTableFromHistory();
+        await syncStatsFromHistory();
         return false;
       }
       if (el) {
-        const bytes =
-          j.raw_metrics_bytes != null
-            ? " · raw UTF-8: " + Number(j.raw_metrics_bytes).toLocaleString("ru-RU") + " байт"
-            : "";
         el.textContent =
           "Снимок " +
           new Date(j.t * 1000).toLocaleString("ru-RU") +
           " · точек в истории: " +
           (j.points_total ?? "?") +
           " · серий: " +
-          (j.metrics_series ?? "?") +
-          bytes;
+          (j.metrics_series ?? "?");
       }
-      renderStatsCards(j.cards);
-      applyMetricsSnapshotPayload(j);
-      await renderStatsChartsFromHistory();
+      const m = j.metrics && typeof j.metrics === "object" ? j.metrics : {};
+      renderStatsDashboard(j.cards, m);
+      const r = await authFetch("/api/metrics/history?server_id=" + encodeURIComponent(sid));
+      if (r.ok) {
+        const data = await r.json();
+        const pts = Array.isArray(data.points) ? data.points : [];
+        updateStatsHistoryCharts(pts);
+      }
       return true;
     } catch (e) {
       const msg = e.message || String(e);
       if (el) el.textContent = msg;
       if (showAlert) alert(msg);
-      await loadMetricsTableFromHistory();
+      await syncStatsFromHistory();
       return false;
     }
   }
 
   async function refreshStatsPanel() {
     if (!$("view-stats").classList.contains("hidden")) {
-      await renderStatsChartsFromHistory();
       await takeMetricsSnapshot(false);
     }
   }
@@ -1263,6 +1369,10 @@
     }
     if (view === "providers") {
       void refreshVdsina();
+    }
+    if (view !== "stats") {
+      destroyStatCharts();
+      statsChartsBoundSid = null;
     }
   }
 
@@ -1535,41 +1645,6 @@
       }
     });
   }
-
-  (function wireStatsMetricsUi() {
-    const f = $("stats-metrics-filter");
-    if (f) f.addEventListener("input", () => renderMetricsTableDom());
-    const g = $("stats-metrics-grouped");
-    if (g) g.addEventListener("change", () => renderMetricsTableDom());
-    const bTsv = $("btn-stats-copy-tsv");
-    if (bTsv) {
-      bTsv.addEventListener("click", async () => {
-        const q = (f && f.value) || "";
-        const rows = filterMetricRows(cachedMetricsRows, q);
-        const lines = rows.map((r) =>
-          [r.key, r.type || "", String(r.value), (r.help || "").replace(/\r?\n/g, " ").replace(/\t/g, " ")].join("\t")
-        );
-        const text = "key\ttype\tvalue\thelp\n" + lines.join("\n");
-        try {
-          await navigator.clipboard.writeText(text);
-          appendLog("TSV метрик скопирован в буфер обмена.");
-        } catch {
-          alert("Не удалось скопировать в буфер обмена");
-        }
-      });
-    }
-    const bRaw = $("btn-stats-copy-raw");
-    if (bRaw) {
-      bRaw.addEventListener("click", async () => {
-        try {
-          await navigator.clipboard.writeText(cachedMetricsRaw || "");
-          appendLog("Сырой текст /metrics скопирован в буфер обмена.");
-        } catch {
-          alert("Не удалось скопировать");
-        }
-      });
-    }
-  })();
 
   async function ensurePanelSession() {
     const st = await authFetch("/api/auth/status");

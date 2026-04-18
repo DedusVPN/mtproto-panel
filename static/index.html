@@ -76,59 +76,60 @@
             </p>
           </header>
           <div class="main-scroll">
-            <div id="stats-cards" class="stats-cards"></div>
+            <div id="stats-dash" class="stats-dash"></div>
             <p id="stats-msg" class="stats-msg hint"></p>
-            <div class="stats-charts">
+            <div class="stats-charts stats-charts-grid">
               <div class="panel stats-chart-panel">
-                <div class="panel-head"><h2>Скорость новых соединений / с</h2></div>
-                <p class="hint">Производная от <code>telemt_connections_total</code></p>
-                <canvas id="chart-conn-rate" height="120"></canvas>
+                <div class="panel-head"><h2>Соединения / с</h2></div>
+                <p class="hint">Производная <code>telemt_connections_total</code></p>
+                <div class="stats-chart-canvas"><canvas id="chart-conn-rate" height="140"></canvas></div>
               </div>
               <div class="panel stats-chart-panel">
-                <div class="panel-head"><h2>Плохие соединения (накопительно)</h2></div>
-                <canvas id="chart-bad" height="120"></canvas>
+                <div class="panel-head"><h2>Таймауты рукопожатия / с</h2></div>
+                <p class="hint"><code>telemt_handshake_timeouts_total</code></p>
+                <div class="stats-chart-canvas"><canvas id="chart-handshake-rate" height="140"></canvas></div>
               </div>
               <div class="panel stats-chart-panel">
-                <div class="panel-head"><h2>Активные ME writers</h2></div>
-                <canvas id="chart-writers" height="120"></canvas>
+                <div class="panel-head"><h2>Тяжёлые проверки auth / с</h2></div>
+                <p class="hint"><code>telemt_auth_expensive_checks_total</code></p>
+                <div class="stats-chart-canvas"><canvas id="chart-auth-rate" height="140"></canvas></div>
               </div>
               <div class="panel stats-chart-panel">
-                <div class="panel-head"><h2>Текущие сессии пользователя (первый user в метриках)</h2></div>
-                <canvas id="chart-user-cur" height="120"></canvas>
+                <div class="panel-head"><h2>Upstream: успех и ошибки / с</h2></div>
+                <p class="hint">Производные <code>telemt_upstream_connect_*_total</code></p>
+                <div class="stats-chart-canvas"><canvas id="chart-upstream" height="140"></canvas></div>
+              </div>
+              <div class="panel stats-chart-panel">
+                <div class="panel-head"><h2>Плохие соединения</h2></div>
+                <p class="hint"><code>telemt_connections_bad_total</code></p>
+                <div class="stats-chart-canvas"><canvas id="chart-bad" height="140"></canvas></div>
+              </div>
+              <div class="panel stats-chart-panel">
+                <div class="panel-head"><h2>ME writers</h2></div>
+                <p class="hint"><code>telemt_me_writers_active_current</code></p>
+                <div class="stats-chart-canvas"><canvas id="chart-writers" height="140"></canvas></div>
+              </div>
+              <div class="panel stats-chart-panel">
+                <div class="panel-head"><h2>ME reconnect / с</h2></div>
+                <p class="hint"><code>telemt_me_reconnect_attempts_total</code></p>
+                <div class="stats-chart-canvas"><canvas id="chart-me-reconn" height="140"></canvas></div>
+              </div>
+              <div class="panel stats-chart-panel">
+                <div class="panel-head"><h2>DC→клиент payload, МБ/с</h2></div>
+                <p class="hint">Производная <code>telemt_me_d2c_payload_bytes_total</code> / 10⁶</p>
+                <div class="stats-chart-canvas"><canvas id="chart-payload-mbs" height="140"></canvas></div>
+              </div>
+              <div class="panel stats-chart-panel">
+                <div class="panel-head"><h2>Сессии пользователя</h2></div>
+                <p class="hint">Первая найденная <code>telemt_user_connections_current{…}</code></p>
+                <div class="stats-chart-canvas"><canvas id="chart-user-cur" height="140"></canvas></div>
+              </div>
+              <div class="panel stats-chart-panel">
+                <div class="panel-head"><h2>Desync (накопительно)</h2></div>
+                <p class="hint"><code>telemt_desync_total</code></p>
+                <div class="stats-chart-canvas"><canvas id="chart-desync" height="140"></canvas></div>
               </div>
             </div>
-
-            <section class="panel stats-full-panel">
-              <div class="panel-head stats-full-head">
-                <h2>Полный мониторинг</h2>
-                <span class="panel-meta" id="stats-metrics-count"></span>
-              </div>
-              <p class="hint">
-                Все числовые серии из ответа <code>/metrics</code> и комментарии <code># HELP</code> / <code># TYPE</code> с
-                сервера. История хранит те же серии (без сырого текста и без HELP для старых точек).
-              </p>
-              <div class="stats-metrics-toolbar">
-                <input
-                  type="search"
-                  class="input stats-filter"
-                  id="stats-metrics-filter"
-                  placeholder="Фильтр: имя метрики, HELP, TYPE или значение…"
-                  autocomplete="off"
-                />
-                <label class="check stats-group-check">
-                  <input type="checkbox" id="stats-metrics-grouped" />
-                  <span>Группировать по базовому имени</span>
-                </label>
-                <button type="button" class="btn btn-secondary btn-sm" id="btn-stats-copy-tsv">Копировать TSV</button>
-                <button type="button" class="btn btn-secondary btn-sm" id="btn-stats-copy-raw">Копировать raw</button>
-              </div>
-              <div id="stats-metrics-wrap" class="stats-metrics-wrap" aria-live="polite"></div>
-              <details class="stats-raw-details">
-                <summary>Сырой ответ /metrics (Prometheus text)</summary>
-                <p class="hint stats-raw-hint" id="stats-raw-hint"></p>
-                <pre class="stats-raw-pre" id="stats-raw-pre"></pre>
-              </details>
-            </section>
           </div>
         </div>
 

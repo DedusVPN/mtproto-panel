@@ -231,6 +231,8 @@ export interface MonitorSettings {
   enabled: boolean
   telegram_bot_token: string
   telegram_chat_id: string
+  /** Кастомный базовый URL Bot API (reverse-proxy). Пустая строка = api.telegram.org */
+  telegram_api_base_url: string
   check_interval_seconds: number
   connect_timeout_seconds: number
   failure_threshold: number

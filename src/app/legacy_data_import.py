@@ -99,6 +99,7 @@ async def migrate_legacy_json(data_dir: Path) -> None:
                             enabled=settings.enabled,
                             telegram_bot_token=settings.telegram_bot_token,
                             telegram_chat_id=settings.telegram_chat_id,
+                            telegram_api_base_url=settings.telegram_api_base_url,
                             check_interval_seconds=settings.check_interval_seconds,
                             connect_timeout_seconds=settings.connect_timeout_seconds,
                             failure_threshold=settings.failure_threshold,
@@ -201,6 +202,7 @@ async def migrate_legacy_json_merge(data_dir: Path) -> None:
                                 enabled=settings.enabled,
                                 telegram_bot_token=settings.telegram_bot_token,
                                 telegram_chat_id=settings.telegram_chat_id,
+                                telegram_api_base_url=settings.telegram_api_base_url,
                                 check_interval_seconds=settings.check_interval_seconds,
                                 connect_timeout_seconds=settings.connect_timeout_seconds,
                                 failure_threshold=settings.failure_threshold,
@@ -211,6 +213,7 @@ async def migrate_legacy_json_merge(data_dir: Path) -> None:
                         row.enabled = settings.enabled
                         row.telegram_bot_token = settings.telegram_bot_token
                         row.telegram_chat_id = settings.telegram_chat_id
+                        row.telegram_api_base_url = settings.telegram_api_base_url
                         row.check_interval_seconds = settings.check_interval_seconds
                         row.connect_timeout_seconds = settings.connect_timeout_seconds
                         row.failure_threshold = settings.failure_threshold

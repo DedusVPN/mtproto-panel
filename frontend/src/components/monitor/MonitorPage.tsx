@@ -23,6 +23,7 @@ const DEFAULT_SETTINGS: MonitorSettings = {
   enabled: false,
   telegram_bot_token: '',
   telegram_chat_id: '',
+  telegram_api_base_url: '',
   check_interval_seconds: 60,
   connect_timeout_seconds: 10,
   failure_threshold: 2,
@@ -283,6 +284,30 @@ export function MonitorPage() {
                   ID чата или канала (можно узнать через @userinfobot)
                 </p>
               </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label className="text-[11px] text-text-muted">
+                API Base URL
+                <span className="ml-1.5 text-[10px] text-text-muted/60 font-normal normal-case tracking-normal">
+                  (опционально — для reverse-proxy)
+                </span>
+              </Label>
+              <Input
+                placeholder="https://api.telegram.org"
+                value={settings.telegram_api_base_url}
+                onChange={(e) => setSettings((p) => ({ ...p, telegram_api_base_url: e.target.value }))}
+                className="text-xs font-mono"
+                autoComplete="off"
+                name="tg-api-base"
+                data-lpignore="true"
+                data-form-type="other"
+              />
+              <p className="text-[10px] text-text-muted leading-relaxed">
+                Если Telegram заблокирован — укажите адрес своего reverse-proxy
+                (например <code className="font-mono">https://tg.my-domain.com</code>).
+                Оставьте пустым для использования официального <code className="font-mono">api.telegram.org</code>.
+              </p>
             </div>
 
             <Button

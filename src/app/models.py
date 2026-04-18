@@ -52,6 +52,7 @@ class MonitorSettingsRow(Base):
     enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=text("false"))
     telegram_bot_token: Mapped[str] = mapped_column(Text, nullable=False, server_default=text("''"))
     telegram_chat_id: Mapped[str] = mapped_column(Text, nullable=False, server_default=text("''"))
+    telegram_api_base_url: Mapped[str] = mapped_column(Text, nullable=False, server_default=text("''"))
     check_interval_seconds: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("60"))
     connect_timeout_seconds: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("10"))
     failure_threshold: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("2"))

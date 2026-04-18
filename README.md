@@ -17,7 +17,7 @@ uv run python -m uvicorn app.main:app --host "${PANEL_BIND_HOST:-0.0.0.0}" --por
 
 Ручное слияние JSON в БД (upsert): `uv run python scripts/migrate_json_to_postgres.py`
 
-**Docker:** том **`panel_data`** снова монтируется в `/app/data` (только чтение). После `alembic upgrade head` entrypoint импортирует legacy JSON в PostgreSQL, пока соответствующие таблицы пусты (одноразово после перехода на PG). Переопределить каталог: **`LEGACY_DATA_DIR`**.
+**Docker:** том **`panel_data`** → `/app/data` (rw: перед импортом entrypoint делает `chmod a+r` на старые `*.json`, иначе часто `PermissionError` из‑за режима 0600). После `alembic upgrade head` выполняется импорт в PostgreSQL, пока таблицы пусты. Каталог: **`LEGACY_DATA_DIR`**.
 
 Обёртки: **`run_panel.sh`**, **`run_panel.cmd`** (те же переменные `PANEL_BIND_HOST` / `PANEL_BIND_PORT`).
 

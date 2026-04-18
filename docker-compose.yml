@@ -67,8 +67,8 @@ services:
       - panel_jwt_secret
       - panel_admin_password_hash
     volumes:
-      # Legacy JSON с прежних версий панели; entrypoint импортирует в PG один раз (пока БД пуста)
-      - panel_data:/app/data:ro
+      # Legacy JSON (раньше 0600). Нужен rw, чтобы entrypoint (root) мог chmod перед импортом; не :ro
+      - panel_data:/app/data
     ports:
       - "8765:8765"
 

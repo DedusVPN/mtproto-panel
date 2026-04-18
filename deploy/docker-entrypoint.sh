@@ -35,6 +35,14 @@ if [ -n "${DATABASE_URL}" ]; then
     echo "migrations: не удалось выполнить alembic upgrade head после $i попыток" >&2
     exit 1
   fi
+  # Старые JSON в томе часто с правами 0600 только для владельца — без chmod импорт падает с PermissionError
+  if [ -d /app/data ]; then
+    chmod a+rx /app/data 2>/dev/null || true
+    for f in /app/data/*.json /app/data/*.json.tmp; do
+      [ -f "$f" ] || continue
+      chmod a+r "$f" 2>/dev/null || true
+    done
+  fi
   # Одноразовый перенос JSON из тома panel_data (/app/data) в PG, пока таблицы пусты
   /app/.venv/bin/python -m app.legacy_data_import
 fi

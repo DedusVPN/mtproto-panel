@@ -1,8 +1,11 @@
-FROM python:3.13-slim AS runtime
+FROM python:3.13-slim-bookworm
 
-ENV PYTHONDONTWRITEBYTECODE=1 \
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
+
+ENV UV_COMPILE_BYTECODE=1 \
+    UV_LINK_MODE=copy \
+    PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
-    PIP_NO_CACHE_DIR=1 \
     UVICORN_HOST=0.0.0.0 \
     UVICORN_PORT=8765
 
@@ -12,14 +15,15 @@ RUN useradd --system --create-home --uid 1000 --shell /usr/sbin/nologin panel \
 
 WORKDIR /app
 
-COPY requirements.txt .
-RUN python -m pip install --upgrade pip \
-    && pip install --no-cache-dir -r requirements.txt
-
-COPY app ./app
+COPY pyproject.toml uv.lock README.md ./
+COPY src ./src
 COPY static ./static
 
+RUN uv sync --frozen --no-cache --no-dev \
+    && chown -R panel:panel /app
+
 USER panel
+ENV PATH="/app/.venv/bin:$PATH"
 
 EXPOSE 8765
 

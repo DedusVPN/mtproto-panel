@@ -13,7 +13,7 @@ from app.server_schemas import (
     StoredServerUpdate,
 )
 
-_DATA_DIR = Path(__file__).resolve().parent.parent / "data"
+_DATA_DIR = Path(__file__).resolve().parents[2] / "data"
 _FILE = _DATA_DIR / "servers.json"
 _lock = asyncio.Lock()
 

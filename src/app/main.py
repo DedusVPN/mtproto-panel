@@ -24,7 +24,7 @@ from app.http_shared import close_shared_http_client, shared_http_client
 from app.panel_auth_settings import get_panel_auth_settings
 from app.ws_auth import require_panel_ws_or_close
 
-STATIC_DIR = Path(__file__).resolve().parent.parent / "static"
+STATIC_DIR = Path(__file__).resolve().parents[2] / "static"
 
 
 @asynccontextmanager

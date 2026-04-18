@@ -1,6 +1,8 @@
 services:
   panel:
-    build: .
+    build:
+      context: .
+      dockerfile: deploy/Dockerfile
     image: free-tg-mtproxy-panel:local
     restart: unless-stopped
     security_opt:

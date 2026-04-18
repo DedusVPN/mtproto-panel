@@ -8,7 +8,7 @@ from typing import Any
 from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-_REPO_ROOT = Path(__file__).resolve().parent.parent
+_REPO_ROOT = Path(__file__).resolve().parents[2]
 _DOTENV_PATH = _REPO_ROOT / ".env"
 
 # По умолчанию User API для vdsina.com; для аккаунта на vdsina.ru задайте VDSINA_API_BASE=https://userapi.vdsina.ru/v1

@@ -5,7 +5,7 @@ import json
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, HTTPException, Query, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
@@ -141,10 +141,24 @@ async def api_metrics_snapshot(body: MetricsSnapshotRequest):
 
 
 @app.get("/api/metrics/history")
-async def api_metrics_history(server_id: str):
+async def api_metrics_history(
+    server_id: str,
+    hours: float | None = Query(
+        None,
+        description="Показать только точки за последние N часов (0.25–48); не указано — всё удерживаемое окно",
+    ),
+):
     if not server_id.strip():
         raise HTTPException(status_code=400, detail="server_id обязателен")
-    pts = await list_history(server_id.strip())
+    h = None
+    if hours is not None:
+        try:
+            hf = float(hours)
+        except (TypeError, ValueError):
+            hf = 0.0
+        if hf > 0:
+            h = min(48.0, max(0.25, hf))
+    pts = await list_history(server_id.strip(), h)
     last_cards: dict[str, object] | None = None
     if pts:
         m = pts[-1].get("m") or {}

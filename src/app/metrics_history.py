@@ -70,7 +70,8 @@ async def append_snapshot(server_id: str, raw_metrics: str) -> dict[str, Any]:
     return {"t": t, "m": parsed_full, "retention_hours": 48}
 
 
-async def list_history(server_id: str) -> list[dict[str, Any]]:
+async def list_history(server_id: str, hours: float | None = None) -> list[dict[str, Any]]:
+    """Возвращает точки за удерживаемый период (до 48 ч). Если hours задан — только за последние N часов."""
     async with _lock:
         doc = _read_all()
         servers = doc.setdefault("servers", {})
@@ -82,4 +83,13 @@ async def list_history(server_id: str) -> list[dict[str, Any]]:
         if len(pruned) != len(lst):
             servers[server_id] = pruned
             _write_atomic(doc)
+        if hours is not None:
+            try:
+                h = float(hours)
+            except (TypeError, ValueError):
+                h = 0.0
+            if h > 0:
+                span = min(h * 3600.0, float(_RETENTION_SEC))
+                tmin = _now() - span
+                pruned = [p for p in pruned if isinstance(p, dict) and float(p.get("t", 0)) >= tmin]
         return pruned

@@ -26,6 +26,7 @@
   const journalLogEl = $("journal-log");
   const LS_SERVER = "telemt_selected_server_id";
   const LS_VIEW = "telemt_panel_view";
+  const LS_STATS_HISTORY_RANGE = "telemt_stats_history_range";
 
   let statsPollTimer = null;
   const chartHandles = {};
@@ -931,6 +932,62 @@
     return escapeAttr(fmtNum(v));
   }
 
+  function showStatsDashLoader(message) {
+    const host = $("stats-dash");
+    if (!host) return;
+    const text = message || "Снимок метрик…";
+    host.innerHTML =
+      '<div class="stats-hero panel"><div class="stats-dash-loader" role="status" aria-live="polite">' +
+      '<span class="stats-dash-loader-spinner" aria-hidden="true"></span>' +
+      '<span class="stats-dash-loader-text">' +
+      escapeAttr(text) +
+      "</span></div></div>";
+  }
+
+  function statsHistoryQuerySuffix() {
+    const sel = $("stats-history-range");
+    if (!sel) return "";
+    const v = String(sel.value || "").trim();
+    if (!v || v === "all") return "";
+    const n = Number(v);
+    if (!Number.isFinite(n) || n <= 0) return "";
+    return "&hours=" + encodeURIComponent(String(Math.min(48, Math.max(1, n))));
+  }
+
+  function isStaleStatsResponse(forServerId) {
+    return !forServerId || selectedServerId !== forServerId;
+  }
+
+  function applyStatsHistoryRangeChange() {
+    if (!$("view-stats") || $("view-stats").classList.contains("hidden")) return;
+    const sid = selectedServerId;
+    if (!sid) return;
+    void (async () => {
+      const data = await fetchMetricsHistoryData(sid);
+      if (isStaleStatsResponse(sid) || !data.ok) return;
+      requestAnimationFrame(() => updateStatsHistoryCharts(data.points, sid));
+    })();
+  }
+
+  function restoreStatsHistoryRangeFromStorage() {
+    const sel = $("stats-history-range");
+    if (!sel) return;
+    const saved = localStorage.getItem(LS_STATS_HISTORY_RANGE);
+    if (saved && Array.from(sel.options).some((o) => o.value === saved)) sel.value = saved;
+  }
+
+  async function fetchMetricsHistoryData(sid) {
+    const suf = statsHistoryQuerySuffix();
+    const r = await authFetch("/api/metrics/history?server_id=" + encodeURIComponent(sid) + suf);
+    if (!r.ok) return { ok: false, points: [], last_cards: null };
+    const data = await r.json();
+    return {
+      ok: true,
+      points: Array.isArray(data.points) ? data.points : [],
+      last_cards: data.last_cards && typeof data.last_cards === "object" ? data.last_cards : null,
+    };
+  }
+
   function renderStatsDashboard(cards, m) {
     const host = $("stats-dash");
     if (!host) return;
@@ -995,17 +1052,52 @@
     return sorted[0] || null;
   }
 
+  function formatChartXTime(ms) {
+    const n = Number(ms);
+    if (!Number.isFinite(n)) return "";
+    const d = new Date(n);
+    if (!Number.isFinite(d.getTime())) return "";
+    return d.toLocaleString("ru-RU", {
+      day: "2-digit",
+      month: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+    });
+  }
+
+  function formatChartTooltipTime(ms) {
+    const n = Number(ms);
+    if (!Number.isFinite(n)) return "";
+    const d = new Date(n);
+    if (!Number.isFinite(d.getTime())) return "";
+    return d.toLocaleString("ru-RU", {
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+      hour12: false,
+    });
+  }
+
   function chartOpts() {
     return {
       responsive: true,
       maintainAspectRatio: false,
       animation: false,
       transitions: { active: { animation: { duration: 0 } } },
+      interaction: { mode: "index", axis: "x", intersect: false },
       scales: {
         x: {
           type: "linear",
           title: { display: true, text: "Время", color: "#8b93a8" },
-          ticks: { color: "#8b93a8", maxTicksLimit: 8 },
+          ticks: {
+            color: "#8b93a8",
+            maxTicksLimit: 8,
+            callback: (raw) => formatChartXTime(raw),
+          },
           grid: { color: "rgba(42,49,66,0.45)" },
         },
         y: {
@@ -1014,7 +1106,21 @@
           grid: { color: "rgba(42,49,66,0.45)" },
         },
       },
-      plugins: { legend: { labels: { color: "#e8ebf0" } } },
+      plugins: {
+        legend: { labels: { color: "#e8ebf0" } },
+        tooltip: {
+          intersect: false,
+          mode: "index",
+          axis: "x",
+          callbacks: {
+            title(items) {
+              if (!items || !items.length) return "";
+              const x = items[0].parsed && items[0].parsed.x;
+              return formatChartTooltipTime(x);
+            },
+          },
+        },
+      },
     };
   }
 
@@ -1077,8 +1183,9 @@
     }
   }
 
-  function updateStatsHistoryCharts(pts) {
+  function updateStatsHistoryCharts(pts, forServerId) {
     if (typeof Chart === "undefined") return;
+    if (forServerId && isStaleStatsResponse(forServerId)) return;
     if (!selectedServerId) {
       destroyStatCharts();
       statsChartsBoundSid = null;
@@ -1181,20 +1288,21 @@
     const sid = selectedServerId;
     if (!sid) {
       renderStatsDashboard(null, {});
-      updateStatsHistoryCharts([]);
+      updateStatsHistoryCharts([], null);
       return;
     }
-    const r = await authFetch("/api/metrics/history?server_id=" + encodeURIComponent(sid));
-    if (!r.ok) return;
-    const data = await r.json();
-    const pts = Array.isArray(data.points) ? data.points : [];
+    const data = await fetchMetricsHistoryData(sid);
+    if (!data.ok || isStaleStatsResponse(sid)) return;
+    const pts = data.points;
     const last = pts.length ? pts[pts.length - 1] : null;
     const m = last && last.m ? last.m : {};
     renderStatsDashboard(data.last_cards || null, m);
-    requestAnimationFrame(() => updateStatsHistoryCharts(pts));
+    requestAnimationFrame(() => updateStatsHistoryCharts(pts, sid));
   }
 
-  async function takeMetricsSnapshot(showAlert) {
+  async function takeMetricsSnapshot(showAlert, options) {
+    const opts = options && typeof options === "object" ? options : {};
+    const dashLoader = opts.dashLoader === true;
     const sid = selectedServerId;
     const port = Number($("stats-metrics-port").value) || 9090;
     const el = $("stats-msg");
@@ -1205,17 +1313,26 @@
       renderStatsDashboard(null, {});
       return false;
     }
+    if (dashLoader) {
+      showStatsDashLoader();
+      void fetchMetricsHistoryData(sid).then((data) => {
+        if (!data.ok || isStaleStatsResponse(sid)) return;
+        requestAnimationFrame(() => updateStatsHistoryCharts(data.points, sid));
+      });
+    }
     try {
       const j = await apiJson("/api/metrics/snapshot", {
         method: "POST",
         body: { server_id: sid, metrics_port: port },
       });
+      if (isStaleStatsResponse(sid)) return false;
       if (!j.ok) {
         if (el) el.textContent = j.message || "Ошибка снимка";
         if (showAlert) alert(j.message || "Ошибка снимка");
         await syncStatsFromHistory();
         return false;
       }
+      if (isStaleStatsResponse(sid)) return false;
       if (el) {
         el.textContent =
           "Снимок " +
@@ -1228,26 +1345,24 @@
       const m = j.metrics && typeof j.metrics === "object" ? j.metrics : {};
       const c = j.cards && typeof j.cards === "object" ? j.cards : null;
       renderStatsDashboard(c, m);
-      await new Promise((resolve) => requestAnimationFrame(() => resolve()));
-      const r = await authFetch("/api/metrics/history?server_id=" + encodeURIComponent(sid));
-      if (r.ok) {
-        const data = await r.json();
-        const pts = Array.isArray(data.points) ? data.points : [];
-        updateStatsHistoryCharts(pts);
-      }
+      const fin = await fetchMetricsHistoryData(sid);
+      if (!fin.ok || isStaleStatsResponse(sid)) return true;
+      requestAnimationFrame(() => updateStatsHistoryCharts(fin.points, sid));
       return true;
     } catch (e) {
       const msg = e.message || String(e);
-      if (el) el.textContent = msg;
-      if (showAlert) alert(msg);
-      await syncStatsFromHistory();
+      if (!isStaleStatsResponse(sid)) {
+        if (el) el.textContent = msg;
+        if (showAlert) alert(msg);
+        await syncStatsFromHistory();
+      }
       return false;
     }
   }
 
-  async function refreshStatsPanel() {
+  function refreshStatsPanel() {
     if (!$("view-stats").classList.contains("hidden")) {
-      await takeMetricsSnapshot(false);
+      void takeMetricsSnapshot(false, { dashLoader: true });
     }
   }
 
@@ -1273,9 +1388,10 @@
     clearStatsTimer();
     if (view === "stats") {
       syncStatsPortFromServersForm();
+      restoreStatsHistoryRangeFromStorage();
       void refreshStatsPanel();
       if ($("stats-auto-snapshot") && $("stats-auto-snapshot").checked) {
-        statsPollTimer = setInterval(() => void takeMetricsSnapshot(false), 60000);
+        statsPollTimer = setInterval(() => void takeMetricsSnapshot(false, { dashLoader: false }), 60000);
       }
     }
     if (view === "providers") {
@@ -1546,14 +1662,22 @@
     });
   });
   const btnSnap = $("btn-stats-snapshot");
-  if (btnSnap) btnSnap.addEventListener("click", () => void takeMetricsSnapshot(true));
+  if (btnSnap) btnSnap.addEventListener("click", () => void takeMetricsSnapshot(true, { dashLoader: true }));
   const autoSnap = $("stats-auto-snapshot");
   if (autoSnap) {
     autoSnap.addEventListener("change", () => {
       clearStatsTimer();
       if (!$("view-stats").classList.contains("hidden") && autoSnap.checked) {
-        statsPollTimer = setInterval(() => void takeMetricsSnapshot(false), 60000);
+        statsPollTimer = setInterval(() => void takeMetricsSnapshot(false, { dashLoader: false }), 60000);
       }
+    });
+  }
+  const statsHistoryRange = $("stats-history-range");
+  if (statsHistoryRange) {
+    restoreStatsHistoryRangeFromStorage();
+    statsHistoryRange.addEventListener("change", () => {
+      localStorage.setItem(LS_STATS_HISTORY_RANGE, statsHistoryRange.value);
+      applyStatsHistoryRangeChange();
     });
   }
 

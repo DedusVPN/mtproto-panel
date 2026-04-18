@@ -63,6 +63,17 @@
                   <span class="field-inline-label">Порт метрик</span>
                   <input class="input input-tight" id="stats-metrics-port" type="number" min="1" max="65535" value="9090" />
                 </label>
+                <label class="field-inline">
+                  <span class="field-inline-label">Период графиков</span>
+                  <select class="input input-select input-tight" id="stats-history-range" title="Окно по оси времени">
+                    <option value="all">Всё (до 48 ч)</option>
+                    <option value="1">1 ч</option>
+                    <option value="6">6 ч</option>
+                    <option value="12">12 ч</option>
+                    <option value="24">24 ч</option>
+                    <option value="48">48 ч</option>
+                  </select>
+                </label>
                 <label class="check stats-auto">
                   <input type="checkbox" id="stats-auto-snapshot" checked />
                   <span>Авто-снимок</span>

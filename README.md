@@ -17,7 +17,7 @@ uv run python -m uvicorn app.main:app --host "${PANEL_BIND_HOST:-0.0.0.0}" --por
 
 Ручное слияние JSON в БД (upsert): `uv run python scripts/migrate_json_to_postgres.py`
 
-**Docker:** том **`panel_data`** → `/app/data` (rw: перед импортом entrypoint делает `chmod a+r` на старые `*.json`, иначе часто `PermissionError` из‑за режима 0600). После `alembic upgrade head` выполняется импорт в PostgreSQL, пока таблицы пусты. Каталог: **`LEGACY_DATA_DIR`**.
+**Docker:** том **`panel_data`** → `/app/data` (rw). У сервиса **panel** в compose **`cap_drop: ALL`** без **`CAP_DAC_OVERRIDE`**, поэтому процесс **root** в контейнере **не обходит** Unix‑права и **не читает** чужие файлы **`0600`** (старые JSON на томе принадлежат **uid 1000**). **`alembic`** и **`legacy_data_import`** в entrypoint запускаются от пользователя **panel (1000)** — как и **uvicorn**. Каталог legacy: **`LEGACY_DATA_DIR`**.
 
 Обёртки: **`run_panel.sh`**, **`run_panel.cmd`** (те же переменные `PANEL_BIND_HOST` / `PANEL_BIND_PORT`).
 

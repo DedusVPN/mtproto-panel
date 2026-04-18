@@ -20,31 +20,28 @@ if [ -z "${DATABASE_URL}" ]; then
   export DATABASE_URL="postgresql+asyncpg://${u}:${p}@postgres:5432/${db}"
 fi
 cd /app
+# cap_drop: ALL без CAP_DAC_OVERRIDE — root в контейнере не читает чужие 0600 (JSON в томе от uid 1000).
+# Alembic и legacy-импорт выполняем от panel (1000), владельца /app и файлов в panel_data.
 if [ -n "${DATABASE_URL}" ]; then
-  i=0
-  ok=0
-  while [ "$i" -lt 30 ]; do
-    if /app/.venv/bin/alembic upgrade head; then
-      ok=1
-      break
-    fi
-    i=$((i + 1))
-    sleep 2
-  done
-  if [ "$ok" != "1" ]; then
-    echo "migrations: не удалось выполнить alembic upgrade head после $i попыток" >&2
-    exit 1
-  fi
-  # Старые JSON в томе часто с правами 0600 только для владельца — без chmod импорт падает с PermissionError
-  if [ -d /app/data ]; then
-    chmod a+rx /app/data 2>/dev/null || true
-    for f in /app/data/*.json /app/data/*.json.tmp; do
-      [ -f "$f" ] || continue
-      chmod a+r "$f" 2>/dev/null || true
-    done
-  fi
-  # Одноразовый перенос JSON из тома panel_data (/app/data) в PG, пока таблицы пусты
-  /app/.venv/bin/python -m app.legacy_data_import
+  setpriv --reuid=1000 --regid=1000 --init-groups -- \
+    sh -ec '
+      cd /app
+      i=0
+      ok=0
+      while [ "$i" -lt 30 ]; do
+        if /app/.venv/bin/alembic upgrade head; then
+          ok=1
+          break
+        fi
+        i=$((i + 1))
+        sleep 2
+      done
+      if [ "$ok" != 1 ]; then
+        echo "migrations: не удалось выполнить alembic upgrade head после $i попыток" >&2
+        exit 1
+      fi
+      /app/.venv/bin/python -m app.legacy_data_import
+    '
 fi
 exec setpriv --reuid=1000 --regid=1000 --init-groups -- \
   /app/.venv/bin/python -m uvicorn app.main:app \

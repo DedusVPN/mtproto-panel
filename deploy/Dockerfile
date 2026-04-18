@@ -7,10 +7,7 @@ WORKDIR /workspace
 COPY frontend/package.json frontend/package-lock.json ./frontend/
 RUN cd frontend && npm ci --ignore-scripts
 
-# Logo — copy to public/ so Vite bundles it as a static asset
-# COPY logo.svg ./frontend/public/logo.svg
-
-# Build (vite outDir: '../static' → /workspace/static)
+# Copy frontend source (includes public/logo.svg)
 COPY frontend/ ./frontend/
 RUN cd frontend && npm run build
 
@@ -34,12 +31,13 @@ RUN useradd --system --create-home --uid 1000 --shell /usr/sbin/nologin panel \
 
 WORKDIR /app
 
-# Python dependencies (own layer — changes rarely)
+# 1) Install only third-party dependencies (no project build yet) — cached layer
 COPY pyproject.toml uv.lock README.md ./
-RUN uv sync --frozen --no-cache --no-dev
+RUN uv sync --frozen --no-cache --no-dev --no-install-project
 
-# Application source
+# 2) Copy application source, then install the project itself
 COPY src ./src
+RUN uv sync --frozen --no-cache --no-dev
 
 # Built frontend from stage 1
 COPY --from=frontend-builder /workspace/static ./static

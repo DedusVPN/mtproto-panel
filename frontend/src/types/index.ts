@@ -220,6 +220,43 @@ export interface VdsinaCreateBody {
   disk?: number
 }
 
+// ─── Monitor ─────────────────────────────────────────────────────────────────
+
+export interface MonitorServerConfig {
+  proxy_port: number
+  enabled: boolean
+}
+
+export interface MonitorSettings {
+  enabled: boolean
+  telegram_bot_token: string
+  telegram_chat_id: string
+  check_interval_seconds: number
+  connect_timeout_seconds: number
+  failure_threshold: number
+  servers: Record<string, MonitorServerConfig>
+}
+
+export type ProxyStatus = 'up' | 'down' | 'unknown'
+
+export interface ServerCheckStatus {
+  status: ProxyStatus
+  last_check_ts: number | null
+  last_change_ts: number | null
+  consecutive_failures: number
+  last_error: string | null
+}
+
+export interface MonitorStatusResponse {
+  running: boolean
+  servers: Record<string, ServerCheckStatus>
+}
+
+export interface MonitorCheckNowResponse {
+  ok: boolean
+  servers: Record<string, ServerCheckStatus>
+}
+
 // ─── Cloudflare ──────────────────────────────────────────────────────────────
 
 export interface CloudflareConfigSummary {

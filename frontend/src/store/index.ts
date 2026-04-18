@@ -2,7 +2,7 @@ import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import type { StoredServer } from '@/types'
 
-type View = 'servers' | 'stats' | 'providers' | 'cloudflare'
+type View = 'servers' | 'stats' | 'providers' | 'cloudflare' | 'monitor'
 
 interface AppState {
   view: View

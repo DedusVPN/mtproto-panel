@@ -1,16 +1,17 @@
-import { Server, BarChart3, Cloud, Globe, LogOut } from 'lucide-react'
+import { Server, BarChart3, Cloud, Globe, Bell, LogOut } from 'lucide-react'
 import { useAppStore } from '@/store'
 import { auth } from '@/api/client'
 import { toast } from 'sonner'
 import { cn } from '@/components/ui'
 
-type View = 'servers' | 'stats' | 'providers' | 'cloudflare'
+type View = 'servers' | 'stats' | 'providers' | 'cloudflare' | 'monitor'
 
 const TABS: { view: View; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
   { view: 'servers', label: 'Серверы', icon: Server },
   { view: 'stats', label: 'Статистика', icon: BarChart3 },
   { view: 'providers', label: 'Хостинг', icon: Cloud },
   { view: 'cloudflare', label: 'Cloudflare', icon: Globe },
+  { view: 'monitor', label: 'Мониторинг', icon: Bell },
 ]
 
 interface TopbarProps {

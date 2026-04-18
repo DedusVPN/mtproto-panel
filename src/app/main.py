@@ -27,6 +27,8 @@ from app.cloudflare_router import cloudflare_router
 from app.http_shared import close_shared_http_client, shared_http_client
 from app.panel_auth_settings import get_panel_auth_settings
 from app.ws_auth import require_panel_ws_or_close
+from app.monitor_router import router as monitor_router
+from app.monitor_scheduler import start_scheduler, stop_scheduler
 
 STATIC_DIR = Path(__file__).resolve().parents[2] / "static"
 
@@ -34,9 +36,11 @@ STATIC_DIR = Path(__file__).resolve().parents[2] / "static"
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
     shared_http_client()
+    start_scheduler()
     try:
         yield
     finally:
+        await stop_scheduler()
         await close_shared_http_client()
 
 
@@ -63,6 +67,7 @@ app.include_router(auth_router)
 app.include_router(cloud_meta_router)
 app.include_router(cloud_vdsina_router)
 app.include_router(cloudflare_router)
+app.include_router(monitor_router)
 
 
 @app.get("/api/presets")

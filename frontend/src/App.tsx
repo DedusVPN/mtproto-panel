@@ -8,6 +8,7 @@ import { ServersPage, type TelemtFormHandle } from '@/components/servers/Servers
 import { StatsPage } from '@/components/stats/StatsPage'
 import { ProvidersPage } from '@/components/providers/ProvidersPage'
 import { CloudflarePage } from '@/components/cloudflare/CloudflarePage'
+import { MonitorPage } from '@/components/monitor/MonitorPage'
 import { useAppStore } from '@/store'
 import { auth as authApi } from '@/api/client'
 import { useServers } from '@/hooks/useServers'
@@ -134,6 +135,7 @@ function AuthenticatedApp({ authStatus }: { authStatus: AuthStatus | null }) {
           {view === 'stats' && <StatsPage />}
           {view === 'providers' && <ProvidersPage />}
           {view === 'cloudflare' && <CloudflarePage />}
+          {view === 'monitor' && <MonitorPage />}
         </main>
       </div>
 

@@ -5,6 +5,7 @@ import type {
   VdsinaServerPlan, VdsinaTemplate, VdsinaSshKey, VdsinaServer, VdsinaCreateBody,
   CloudflareOverview, CloudflareSyncItem, CloudflareDeleteRecord, CloudflareSyncResult,
   TelemtConfig,
+  MonitorSettings, MonitorStatusResponse, MonitorCheckNowResponse,
 } from '@/types'
 
 // ─── Core fetch ──────────────────────────────────────────────────────────────
@@ -114,6 +115,18 @@ export const vdsina = {
     apiJson<{ id: number; server?: VdsinaServer }>('/api/cloud/vdsina/servers', jsonInit(body)),
   delete: (id: number) =>
     apiJson<{ ok: boolean }>(`/api/cloud/vdsina/servers/${id}`, { method: 'DELETE' }),
+}
+
+// ─── Monitor ─────────────────────────────────────────────────────────────────
+
+export const monitor = {
+  getSettings: () => apiJson<MonitorSettings>('/api/monitor/settings'),
+  putSettings: (body: MonitorSettings) =>
+    apiJson<MonitorSettings>('/api/monitor/settings', jsonInit(body, 'PUT')),
+  status: () => apiJson<MonitorStatusResponse>('/api/monitor/status'),
+  checkNow: () => apiJson<MonitorCheckNowResponse>('/api/monitor/check-now', { method: 'POST' }),
+  testTelegram: (body: MonitorSettings) =>
+    apiJson<{ ok: boolean; message: string }>('/api/monitor/test-telegram', jsonInit(body)),
 }
 
 // ─── Cloudflare ───────────────────────────────────────────────────────────────

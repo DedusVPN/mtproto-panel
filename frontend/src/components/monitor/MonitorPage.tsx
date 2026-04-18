@@ -233,9 +233,9 @@ export function MonitorPage() {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4 px-5 pb-5">
-            {/* Fake hidden inputs block browser's heuristic autofill */}
-            <input type="text" name="prevent_autofill_user" style={{ display: 'none' }} readOnly />
-            <input type="password" name="prevent_autofill_pass" style={{ display: 'none' }} readOnly />
+            {/* Декой без type=password — иначе браузер связывает с полем токена и предлагает сохранить */}
+            <input type="text" name="prevent_autofill_user" style={{ display: 'none' }} readOnly tabIndex={-1} autoComplete="off" aria-hidden />
+            <input type="text" name="prevent_autofill_pass" style={{ display: 'none' }} readOnly tabIndex={-1} autoComplete="off" aria-hidden />
 
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-1.5">
@@ -248,8 +248,9 @@ export function MonitorPage() {
                     onChange={(e) => setSettings((p) => ({ ...p, telegram_bot_token: e.target.value }))}
                     className="text-xs font-mono pr-8"
                     autoComplete="new-password"
-                    name="tg-bot-token"
+                    name="telegram-botfather-token"
                     data-lpignore="true"
+                    data-1p-ignore
                     data-form-type="other"
                   />
                   <button

@@ -487,7 +487,7 @@ export function ServersPage({ onOpenServerDialog, onApplyTelemt: _onApply, telem
                 </div>
                 <div className="space-y-1.5">
                   <Label htmlFor="ssh-user">Пользователь</Label>
-                  <Input id="ssh-user" value={sshUser} onChange={(e) => setSshUser(e.target.value)} autoComplete="username" />
+                  <Input id="ssh-user" value={sshUser} onChange={(e) => setSshUser(e.target.value)} autoComplete="off" name="ssh-remote-user" />
                 </div>
               </div>
               {authMode === 'key' ? (
@@ -510,7 +510,17 @@ export function ServersPage({ onOpenServerDialog, onApplyTelemt: _onApply, telem
               ) : (
                 <div className="space-y-1.5">
                   <Label htmlFor="ssh-password">Пароль SSH</Label>
-                  <Input id="ssh-password" type="password" value={sshPassword} onChange={(e) => setSshPassword(e.target.value)} autoComplete="current-password" />
+                  <Input
+                    id="ssh-password"
+                    type="password"
+                    value={sshPassword}
+                    onChange={(e) => setSshPassword(e.target.value)}
+                    autoComplete="new-password"
+                    name="ssh-remote-secret"
+                    data-lpignore="true"
+                    data-1p-ignore
+                    data-form-type="other"
+                  />
                 </div>
               )}
             </CardContent>

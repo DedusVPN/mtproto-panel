@@ -178,6 +178,8 @@ export function ServerDialog({
                   id="dlg-user"
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
+                  autoComplete="off"
+                  name="ssh-remote-user"
                 />
               </div>
             </div>
@@ -243,7 +245,11 @@ export function ServerDialog({
                   type="password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  autoComplete="current-password"
+                  autoComplete="new-password"
+                  name="ssh-remote-secret"
+                  data-lpignore="true"
+                  data-1p-ignore
+                  data-form-type="other"
                 />
               </div>
             )}

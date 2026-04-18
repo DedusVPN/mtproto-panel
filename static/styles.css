@@ -1143,6 +1143,15 @@ details.sidebar-cloud[open] > .cloud-summary::before {
   gap: 0.35rem;
 }
 
+.cf-dns-actions-ttl {
+  align-items: center;
+}
+
+.cf-dns-ttl-field {
+  margin: 0;
+  margin-right: 0.25rem;
+}
+
 .cf-dns-actions-row2 {
   margin-top: -0.15rem;
 }

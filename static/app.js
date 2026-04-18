@@ -1921,9 +1921,11 @@
       }
       if (!dryRun && !confirm("Изменить A-записи в Cloudflare по выбранным группам?")) return;
       try {
+        const ttlRaw = parseInt(String($("cf-dns-ttl")?.value || "60"), 10);
+        const ttl = Number.isFinite(ttlRaw) && ttlRaw >= 1 ? ttlRaw : 60;
         const data = await apiJson("/api/cloud/cloudflare/sync-panel-servers", {
           method: "POST",
-          body: { items, proxied: false, ttl: 1, dry_run: dryRun },
+          body: { items, proxied: false, ttl, dry_run: dryRun },
         });
         cfDnsShowLog(data.log);
         cfDnsShowJson(data);

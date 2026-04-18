@@ -3,7 +3,7 @@ from __future__ import annotations
 import ipaddress
 from typing import Annotated
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 
 def normalize_ipv4_unique_list(v: list[str]) -> list[str]:
@@ -53,5 +53,21 @@ class CloudflareSyncPanelServersRequest(BaseModel):
 
     items: Annotated[list[CloudflarePanelDnsRow], Field(min_length=1)]
     proxied: bool = False
-    ttl: int = Field(1, ge=1, le=2147483647)
+    ttl: int = Field(
+        60,
+        ge=1,
+        le=86400,
+        description="1 = авто в Cloudflare; иначе 60–86400 с (минимум ручного TTL — 60)",
+    )
     dry_run: bool = False
+
+    @model_validator(mode="after")
+    def ttl_cloudflare_rules(self) -> CloudflareSyncPanelServersRequest:
+        t = self.ttl
+        if t == 1:
+            return self
+        if t < 60:
+            raise ValueError("TTL: либо 1 (авто), либо не меньше 60 секунд (требование Cloudflare)")
+        if t > 86400:
+            raise ValueError("TTL не больше 86400 с")
+        return self

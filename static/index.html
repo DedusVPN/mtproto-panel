@@ -475,7 +475,20 @@
               </div>
               <div class="cf-dns-wrap" id="cf-dns-panel">
                 <p class="hint cf-dns-line" id="cf-dns-line"></p>
-                <div class="cf-dns-actions">
+                <div class="cf-dns-actions cf-dns-actions-ttl">
+                  <label class="field-inline cf-dns-ttl-field">
+                    <span class="field-inline-label">TTL записей</span>
+                    <select class="input input-select input-tight" id="cf-dns-ttl" title="Для новых и обновляемых A">
+                      <option value="60" selected>60 с (мин.)</option>
+                      <option value="120">120 с</option>
+                      <option value="300">300 с</option>
+                      <option value="600">600 с</option>
+                      <option value="1800">1800 с</option>
+                      <option value="3600">1 ч</option>
+                      <option value="86400">24 ч</option>
+                      <option value="1">Авто (CF)</option>
+                    </select>
+                  </label>
                   <button type="button" class="btn btn-ghost btn-sm" id="btn-cf-dns-overview">Обновить сводку</button>
                   <button type="button" class="btn btn-ghost btn-sm" id="btn-cf-dns-panel-dry">Dry-run (лог)</button>
                   <button type="button" class="btn btn-primary btn-sm" id="btn-cf-dns-panel-sync">Применить в Cloudflare</button>

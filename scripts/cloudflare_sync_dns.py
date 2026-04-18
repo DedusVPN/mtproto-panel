@@ -20,6 +20,9 @@ from app.providers.cloudflare_api import CloudflareApiError, CloudflareClient  #
 
 
 async def _run(ns: argparse.Namespace) -> int:
+    if ns.ttl != 1 and (ns.ttl < 60 or ns.ttl > 86400):
+        print("TTL: укажите 1 (авто) или число от 60 до 86400.", file=sys.stderr)
+        return 2
     if not ns.name or not ns.ips:
         print("Укажите --name и --ips (IPv4 через запятую).", file=sys.stderr)
         return 2
@@ -65,7 +68,7 @@ def main() -> int:
     p.add_argument("--name", required=True, help="Поддомен (mt) или @ для apex")
     p.add_argument("--ips", required=True, help="IPv4 через запятую")
     p.add_argument("--proxied", action="store_true")
-    p.add_argument("--ttl", type=int, default=1)
+    p.add_argument("--ttl", type=int, default=60, help="1 = авто в CF; иначе 60–86400 (минимум ручного — 60)")
     ns = p.parse_args()
     return asyncio.run(_run(ns))
 

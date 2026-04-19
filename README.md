@@ -60,4 +60,14 @@ docker compose up -d --build
 
 ## Позже HTTPS за прокси
 
-Тогда выставьте **`PANEL_COOKIE_SECURE=true`**, **`PANEL_TRUST_FORWARDED_PROTO=true`** и прокси с корректными заголовками `X-Forwarded-Proto: https`.
+Тогда выставьте **`PANEL_COOKIE_SECURE=true`**, **`PANEL_TRUST_FORWARDED_PROTO=true`** и прокси с корректными заголовками **`X-Forwarded-Proto: https`**.
+
+### HTTPS и WebSocket
+
+Развёртывание по SSH и поток журнала используют **`/ws/deploy`** и **`/ws/journal`**. Если Nginx (или другой прокси) отдаёт страницу по HTTPS, но **не проксирует WebSocket**, в логе появится ошибка соединения (часто закрытие с **кодом 1006**).
+
+Обязательно передайте заголовки **`Upgrade`** и **`Connection`** до uvicorn. Готовый фрагмент: **`deploy/nginx-panel-ws.example.conf`** (блок **`map $http_upgrade $connection_upgrade`** и **`proxy_set_header Connection $connection_upgrade`** в **`location /`**).
+
+Для **Caddy** достаточно обратного прокси на тот же хост: поддержка WebSocket включается автоматически. Для **Traefik** используйте сервис без отключения WebSocket (стандартные маршруты обычно уже корректны).
+
+После входа панель дублирует JWT в **`sessionStorage`** только для запроса WebSocket (query **`access_token`**): это помогает редким прокси, которые теряют cookie при upgrade; основной сценарий — корректные заголовки у прокси.
